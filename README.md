@@ -1,8 +1,8 @@
-# LiveCam — Phase 2
+# LiveCam — Phase 3
 
-A private two-way video call between two devices, direct over WebRTC — both sides see and hear each other, like a video chat. The backend only helps the two devices find each other; the actual audio/video never passes through it.
+A private two-way video call with encrypted text chat, direct over WebRTC, plus shareable invite links so joining is one click instead of copy-pasting a URL and room code by hand.
 
-> Phase 1 (one-way laptop → phone viewer) is preserved for reference in `backend/main.py.phase1.bak`.
+> Phase 1 (one-way viewer) and Phase 2 (two-way call, no chat/links) are preserved in `backend/main.py.phase1.bak` for reference — the Phase 2 signaling server also still works as-is with this Phase 3 frontend, since chat and invite links don't require any server changes.
 
 ```
 livecam/
@@ -18,12 +18,21 @@ livecam/
 ## How it works
 
 1. Open the site on both devices.
-2. Enter the **same signaling server URL** and the **same room code** on both.
-3. Both click **Join call**. Whoever joins first waits; whoever joins second automatically starts the connection.
-4. Once connected, each side sees the other's camera (large) and their own (small, bottom-right), and audio/video streams directly peer-to-peer. The signaling server only relayed the handshake and then steps out of the way.
-5. Each side can mute their mic or hide their camera independently with the controls under the call.
+2. Enter the **same signaling server URL** and the **same room code** on both — or, faster, one person clicks **Copy invite link** and sends that link to the other person. Opening it pre-fills both fields automatically.
+3. Both click **Join call** (this is a deliberate click, not automatic — so you always get the browser's camera/mic permission prompt on your own terms). Whoever joins first waits; whoever joins second automatically starts the connection.
+4. Once connected, each side sees the other's camera (large) and their own (small, bottom-right), with audio/video streaming directly peer-to-peer.
+5. Click **💬 Chat** to open a text chat panel alongside the call. Messages travel over a WebRTC **DataChannel** — the same direct, DTLS-encrypted connection as the video — so they never pass through the signaling server either.
+6. Each side can mute their mic or hide their camera independently.
 
 Rooms hold at most 2 people — a third device trying to join the same room code will be told the room is full.
+
+### About invite links
+
+An invite link looks like:
+```
+https://your-app.vercel.app/?server=https%3A%2F%2Flivecam-signaling.onrender.com&room=amber-falcon-71
+```
+It just pre-fills the two setup fields — it does **not** auto-join the call. That's intentional: whoever opens the link still has to click Join call themselves, so nothing about their camera or microphone happens without a deliberate action on their end. Anyone with the link can join the room, so treat it like a room key: share it only with the person you're calling (e.g. over a messaging app you both already trust), and generate a fresh room code for each call if you want old links to stop working.
 
 ## 1. Deploy the backend (Render)
 
@@ -47,15 +56,16 @@ Note: Render's free tier spins down when idle, so the first connection after a w
 
 1. Open the Vercel URL on the first device.
 2. Paste in your Render **wss://** URL under "Signaling server", and generate (or enter) a room code.
-3. Click **Join call**, and allow camera/mic access.
-4. Open the same Vercel URL on the second device, enter the *same* server URL and room code, click **Join call**, and allow camera/mic access.
+3. Click **Copy invite link**, and send that link to the other person (text, email, whatever you'd normally use).
+4. The other person opens the link — their fields are pre-filled — and both of you click **Join call**, allowing camera/mic access when prompted.
 
-Within a few seconds both devices should see and hear each other.
+Within a few seconds both devices should see and hear each other, and you can open the chat panel to send text messages too.
 
-## Notes on reliability & security (Phase 1 scope)
+## Notes on reliability & security (Phase 3 scope)
 
 - **NAT traversal:** a public STUN server and a free public TURN test server (openrelay.metered.ca) are included so this works across different WiFi/cellular networks. The public TURN server is rate-limited and fine for personal testing, but swap in your own (e.g. a paid Twilio or Cloudflare TURN service) if you rely on this daily.
-- **The room code is the only access control right now.** Anyone with your server URL and room code can join and watch. Keep the code private, and treat this as a personal/testing tool rather than something to expose publicly. Password protection, invite links, and authentication are natural next steps (Phase 2+ in the original roadmap) if you want to harden this.
+- **The room code (whether typed in or embedded in an invite link) is the only access control right now.** Anyone with it can join. Keep links and codes private, share them only over a channel you trust, and generate a fresh code per call if that matters to you.
+- **Video, audio, and chat are all encrypted in transit** — WebRTC requires DTLS/SRTP for media and DataChannels by design, so this is on by default, not something extra that was bolted on. The signaling server never sees any of that content, only the connection setup messages needed to establish it.
 - **HTTPS/WSS only in production** — browsers block camera access and mixed-content WebSocket connections over plain HTTP, so make sure you're using the `https://`/`wss://` URLs Render and Vercel give you.
 
 ## Local testing (optional, before deploying)
@@ -70,4 +80,4 @@ Then use `ws://localhost:8000` as the signaling server URL, and open `frontend/i
 
 ## What's next (from the original roadmap)
 
-This covers **Phase 1 (one-way viewer)** and **Phase 2 (two-way calls)**. Later phases in your plan — secure messaging, voice-only calls, group meetings, screen sharing/recording, and eventually a full encrypted messenger — build on this same signaling foundation. Happy to help scope any of those next.
+This covers **Phase 1 (one-way viewer)**, **Phase 2 (two-way calls)**, and **Phase 3 (chat + invite links)**. Natural next steps from your original plan: real authentication/accounts instead of a shared room code, group calls (3+ people), screen sharing, recording, and eventually a full encrypted messenger. Happy to help scope any of those next.

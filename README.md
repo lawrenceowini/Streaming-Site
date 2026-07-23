@@ -24,6 +24,7 @@ livecam/
 5. Click **💬 Chat** to open a text chat panel. Messages are sent to everyone in the call over WebRTC **DataChannels** — the same direct, DTLS-encrypted connections as the video — so they never pass through the signaling server.
 6. Click **🖥️ Share screen** to swap your outgoing video for your screen (pick a window, tab, or your whole screen). Click it again, or use the browser's own "Stop sharing" control, to switch back to your camera. Your microphone keeps working the whole time.
 7. Everyone can mute their own mic or hide their own camera independently.
+8. Click any tile — yours or anyone else's — to expand it to true fullscreen. This is especially handy when someone's sharing their screen and you want to read it clearly; click anywhere (or press Escape) to shrink it back to the grid.
 
 ### About group calls (mesh, not a media server)
 

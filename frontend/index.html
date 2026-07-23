@@ -67,7 +67,7 @@
   .invite-actions{display:flex;gap:8px;margin-top:12px;}
   .invite-actions .ghost-btn{flex:1;padding:10px;}
 
-  .stage{width:100%;max-width:520px;margin-top:18px;display:none;}
+  .stage{width:100%;max-width:640px;margin-top:18px;display:none;}
   .stage.active{display:block;}
   .status-bar{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;
     color:var(--text-dim);margin-bottom:12px;}
@@ -76,28 +76,31 @@
   .status-dot.live{background:var(--ok);}
   .status-dot.error{background:var(--error);}
 
-  .call-frame{width:100%;aspect-ratio:4/3;max-height:60vh;background:#000;border-radius:var(--radius);
-    overflow:hidden;border:1px solid var(--line);position:relative;}
-  video{width:100%;height:100%;object-fit:cover;display:block;background:#000;}
-  #remote-video{width:100%;height:100%;}
-  #local-video{position:absolute;bottom:12px;right:12px;width:28%;max-width:140px;aspect-ratio:3/4;
-    border-radius:8px;border:2px solid var(--bg-panel);object-fit:cover;box-shadow:0 2px 10px rgba(0,0,0,.4);}
-  .empty-state{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    color:var(--text-dim);font-size:13px;font-family:var(--mono);text-align:center;padding:20px;
-    background:#000;}
+  .video-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;}
+  .video-tile{position:relative;background:#000;border-radius:10px;overflow:hidden;
+    border:1px solid var(--line);aspect-ratio:4/3;order:1;}
+  .video-tile video{width:100%;height:100%;object-fit:cover;display:block;background:#000;}
+  #local-tile{order:0;}
+  .tile-label{position:absolute;bottom:6px;left:8px;background:rgba(0,0,0,.55);color:var(--text);
+    font-size:10.5px;padding:2px 8px;border-radius:6px;font-family:var(--mono);letter-spacing:.03em;}
+  .waiting-tile{display:flex;align-items:center;justify-content:center;color:var(--text-dim);
+    font-size:12px;font-family:var(--mono);text-align:center;padding:14px;border:1px dashed var(--line);
+    order:2;}
 
-  .controls{display:flex;gap:10px;margin-top:14px;}
-  .btn{flex:1;padding:12px 16px;border-radius:8px;border:none;font-family:var(--mono);
-    font-size:13px;letter-spacing:.03em;cursor:pointer;font-weight:600;position:relative;}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .btn{flex:1 1 45%;min-width:110px;padding:11px 14px;border-radius:8px;border:none;font-family:var(--mono);
+    font-size:12.5px;letter-spacing:.02em;cursor:pointer;font-weight:600;position:relative;}
   .btn-primary{background:var(--accent);color:#1a1200;}
   .btn-primary:hover{background:#f0ae4d;}
-  .btn-secondary{background:transparent;border:1px solid var(--line);color:var(--text);}
+  .btn-secondary{background:transparent;border:1px solid var(--line);color:var(--text);
+    flex:1 1 45%;min-width:110px;padding:11px 14px;border-radius:8px;font-family:var(--mono);
+    font-size:12.5px;cursor:pointer;font-weight:600;position:relative;}
   .btn-secondary:hover{border-color:var(--accent);color:var(--accent);}
   .btn-secondary.active{background:var(--bg-panel-2);border-color:var(--accent);color:var(--accent);}
-  .btn-hangup{background:transparent;border:1px solid var(--error);color:var(--error);flex:1;
-    padding:12px 16px;border-radius:8px;font-family:var(--mono);font-size:13px;cursor:pointer;font-weight:600;}
+  .btn-hangup{width:100%;margin-top:8px;background:transparent;border:1px solid var(--error);color:var(--error);
+    padding:11px 14px;border-radius:8px;font-family:var(--mono);font-size:12.5px;cursor:pointer;font-weight:600;}
   .btn-hangup:hover{background:rgba(217,83,79,.12);}
-  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn:disabled, .btn-secondary:disabled{opacity:.4;cursor:not-allowed;}
   .unread-badge{position:absolute;top:-6px;right:-6px;background:var(--accent);color:#1a1200;
     font-size:10px;min-width:16px;height:16px;border-radius:8px;display:none;align-items:center;
     justify-content:center;padding:0 3px;font-weight:700;}
@@ -114,7 +117,7 @@
   .chat-msg.me .bubble{background:var(--accent);color:#1a1200;}
   .chat-msg.them{margin-right:20%;}
   .chat-msg.them .bubble{background:var(--bg-panel-2);border:1px solid var(--line);}
-  .chat-msg .meta{font-size:10px;color:var(--text-dim);margin-top:2px;font-family:var(--mono);}
+  .chat-msg .meta{font-size:10px;color:var(--text-dim);margin-bottom:2px;font-family:var(--mono);}
   .chat-system{text-align:center;font-size:11px;color:var(--text-dim);font-family:var(--mono);margin:8px 0;}
   .chat-input-row{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line);}
   .chat-input-row input{flex:1;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--text);
@@ -134,7 +137,7 @@
 <body>
 
   <div class="brand"><span class="brand-node"></span><h1>LiveCam</h1></div>
-  <p class="tagline">A private video call and chat, direct and peer-to-peer, over your own signal.</p>
+  <p class="tagline">A private group video call and chat, direct and peer-to-peer, over your own signal.</p>
 
   <div class="invite-banner" id="invite-banner">
     <strong>Invite link detected</strong> — the server and room fields below are pre-filled. Review them, then join the call when ready.
@@ -144,7 +147,7 @@
     <div class="field">
       <label for="server-url">Signaling server</label>
       <input type="text" id="server-url" placeholder="wss://your-app.onrender.com" />
-      <p class="hint">The WebSocket URL of your deployed backend. Both devices must use the same one.</p>
+      <p class="hint">The WebSocket URL of your deployed backend. Everyone must use the same one.</p>
     </div>
     <div class="field">
       <label for="room-code">Room code</label>
@@ -152,17 +155,17 @@
         <input type="text" id="room-code" placeholder="e.g. amber-falcon-71" />
         <button class="ghost-btn" id="gen-code">Generate</button>
       </div>
-      <p class="hint">Anyone with this code and the server URL can join — keep it private.</p>
+      <p class="hint">Anyone with this code and the server URL can join — keep it private. Up to 6 people per room.</p>
     </div>
     <div class="field">
       <label for="room-password">Room password (optional)</label>
       <input type="text" id="room-password" placeholder="Leave blank for no password" autocomplete="off" />
-      <p class="hint">Whoever joins first sets the password for the room. Share it separately from the invite link — not through it — so a leaked link alone can't get someone in.</p>
+      <p class="hint">Whoever joins first sets the password for the room. Share it separately from the invite link — not through it.</p>
     </div>
   </div>
 
   <div class="join-card" id="join-card">
-    <p>Enter a room code above, then share an invite link with the other person — or send them the code and server URL directly.</p>
+    <p>Enter a room code above, then share an invite link with everyone joining — or send them the code and server URL directly.</p>
     <button class="btn btn-primary btn-join" id="join-btn">Join call</button>
     <div class="invite-actions">
       <button class="ghost-btn" id="copy-link">🔗 Copy invite link</button>
@@ -172,22 +175,26 @@
   <!-- Call stage -->
   <div class="stage" id="stage-call">
     <div class="status-bar"><span class="status-dot" id="call-dot"></span><span id="call-status">Not connected</span></div>
-    <div class="call-frame">
-      <video id="remote-video" autoplay playsinline></video>
-      <div class="empty-state" id="call-empty">Waiting for the other person to join…</div>
-      <video id="local-video" autoplay muted playsinline></video>
+
+    <div class="video-grid" id="video-grid">
+      <div class="video-tile" id="local-tile">
+        <video id="local-video" autoplay muted playsinline></video>
+        <div class="tile-label">You</div>
+      </div>
     </div>
+
     <div class="controls">
       <button class="btn-secondary" id="toggle-mic">🎙️ Mute</button>
       <button class="btn-secondary" id="toggle-cam">🎥 Hide cam</button>
+      <button class="btn-secondary" id="toggle-screen">🖥️ Share screen</button>
       <button class="btn-secondary" id="toggle-chat">💬 Chat<span class="unread-badge" id="unread-badge">0</span></button>
-      <button class="btn-hangup" id="hangup">Hang up</button>
     </div>
+    <button class="btn-hangup" id="hangup">Hang up</button>
 
     <div class="chat-panel" id="chat-panel">
       <div class="chat-log" id="chat-log"></div>
       <div class="chat-input-row">
-        <input type="text" id="chat-input" placeholder="Message the other person…" disabled />
+        <input type="text" id="chat-input" placeholder="Message everyone in the call…" disabled />
         <button id="chat-send" disabled>Send</button>
       </div>
     </div>
@@ -195,7 +202,7 @@
     <div class="back-link" id="call-back">← back to setup</div>
   </div>
 
-  <footer>Video, audio, and chat travel directly between devices via WebRTC.<br>The server only relays connection setup — it never sees the call or messages.</footer>
+  <footer>Video, audio, screen share, and chat travel directly between devices via WebRTC.<br>The server only relays connection setup — it never sees the call or messages.</footer>
 
 <script>
 const ICE_SERVERS = [
@@ -242,7 +249,6 @@ function normalizeWsUrl(raw){
   else if(!url.startsWith('ws://') && !url.startsWith('wss://')) url = 'wss://' + url;
   return url.replace(/\/$/, '');
 }
-// The invite link stores the server as https/http (nicer to read); convert for actual use.
 function toDisplayUrl(wsUrl){
   return wsUrl.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
 }
@@ -258,8 +264,6 @@ function requireSetup(){
   return { url, room, password };
 }
 
-// Hash the password client-side (SHA-256) so the server only ever sees a hash,
-// never the plaintext. Empty password hashes to an empty string (= no password).
 async function hashPassword(password){
   if(!password) return '';
   const data = new TextEncoder().encode(password);
@@ -286,11 +290,11 @@ function setCallStatus(text, cls){
 }
 
 /* ---------------- Chat ---------------- */
-let dataChannel = null;
+let dataChannels = new Map(); // peerId -> RTCDataChannel
 let unreadCount = 0;
 let chatOpen = false;
 
-function addChatMessage(text, who){ // who: 'me' | 'them' | 'system'
+function addChatMessage(text, who, peerId){ // who: 'me' | 'them' | 'system'
   const log = $('chat-log');
   if(who === 'system'){
     const el = document.createElement('div');
@@ -300,6 +304,12 @@ function addChatMessage(text, who){ // who: 'me' | 'them' | 'system'
   } else {
     const wrap = document.createElement('div');
     wrap.className = 'chat-msg ' + who;
+    if(who === 'them'){
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = `Peer ${peerId ? peerId.slice(0,4) : '?'}`;
+      wrap.appendChild(meta);
+    }
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     bubble.textContent = text;
@@ -316,25 +326,28 @@ function addChatMessage(text, who){ // who: 'me' | 'them' | 'system'
   }
 }
 
-function setupDataChannel(){
-  dataChannel.onopen = () => {
-    $('chat-input').disabled = false;
-    $('chat-send').disabled = false;
-    addChatMessage('Chat connected — messages are peer-to-peer and encrypted like the call.', 'system');
-  };
-  dataChannel.onclose = () => {
-    $('chat-input').disabled = true;
-    $('chat-send').disabled = true;
-  };
-  dataChannel.onmessage = (event) => addChatMessage(event.data, 'them');
+function checkChatReady(){
+  const anyOpen = Array.from(dataChannels.values()).some(c => c.readyState === 'open');
+  $('chat-input').disabled = !anyOpen;
+  $('chat-send').disabled = !anyOpen;
+}
+
+function setupDataChannel(peerId, channel){
+  dataChannels.set(peerId, channel);
+  channel.onopen = () => checkChatReady();
+  channel.onclose = () => { dataChannels.delete(peerId); checkChatReady(); };
+  channel.onmessage = (event) => addChatMessage(event.data, 'them', peerId);
 }
 
 function sendChatMessage(){
   const input = $('chat-input');
   const text = input.value.trim();
-  if(!text || !dataChannel || dataChannel.readyState !== 'open') return;
-  dataChannel.send(text);
-  addChatMessage(text, 'me');
+  if(!text) return;
+  let sentToAnyone = false;
+  for(const channel of dataChannels.values()){
+    if(channel.readyState === 'open'){ channel.send(text); sentToAnyone = true; }
+  }
+  if(sentToAnyone) addChatMessage(text, 'me');
   input.value = '';
 }
 $('chat-send').onclick = sendChatMessage;
@@ -350,9 +363,151 @@ $('toggle-chat').onclick = () => {
   }
 };
 
-/* ---------------- Call state ---------------- */
-let pc = null, ws = null, localStream = null, myRole = null;
+/* ---------------- Video tiles ---------------- */
+const remoteTiles = new Map(); // peerId -> { wrapper, video }
+
+function ensureRemoteTile(peerId){
+  if(remoteTiles.has(peerId)) return remoteTiles.get(peerId).video;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'video-tile';
+  wrapper.id = `tile-${peerId}`;
+  const video = document.createElement('video');
+  video.autoplay = true;
+  video.playsInline = true;
+  const label = document.createElement('div');
+  label.className = 'tile-label';
+  label.textContent = `Peer ${peerId.slice(0,4)}`;
+  wrapper.appendChild(video);
+  wrapper.appendChild(label);
+  $('video-grid').appendChild(wrapper);
+  remoteTiles.set(peerId, { wrapper, video });
+  updateWaitingTile();
+  return video;
+}
+function removeRemoteTile(peerId){
+  const t = remoteTiles.get(peerId);
+  if(t){ t.wrapper.remove(); remoteTiles.delete(peerId); }
+  updateWaitingTile();
+}
+function updateWaitingTile(){
+  let placeholder = document.getElementById('waiting-tile');
+  if(remoteTiles.size === 0){
+    if(!placeholder){
+      placeholder = document.createElement('div');
+      placeholder.className = 'video-tile waiting-tile';
+      placeholder.id = 'waiting-tile';
+      placeholder.textContent = 'Waiting for others to join…';
+      $('video-grid').appendChild(placeholder);
+    }
+  } else if(placeholder){
+    placeholder.remove();
+  }
+}
+
+/* ---------------- Call state (mesh: one RTCPeerConnection per remote peer) ---------------- */
+let ws = null;
+let myPeerId = null;
+let localStream = null, cameraVideoTrack = null;
+let screenStream = null, isScreenSharing = false;
 let micOn = true, camOn = true;
+const peerConnections = new Map(); // peerId -> RTCPeerConnection
+const pendingCandidates = new Map(); // peerId -> [candidates received before remote description was set]
+
+function queueOrAddCandidate(peerId, candidate){
+  const pc = peerConnections.get(peerId);
+  if(pc && pc.remoteDescription){
+    pc.addIceCandidate(candidate).catch(() => {});
+  } else {
+    if(!pendingCandidates.has(peerId)) pendingCandidates.set(peerId, []);
+    pendingCandidates.get(peerId).push(candidate);
+  }
+}
+function flushPendingCandidates(peerId){
+  const pc = peerConnections.get(peerId);
+  const queue = pendingCandidates.get(peerId);
+  if(pc && queue){
+    queue.forEach(c => pc.addIceCandidate(c).catch(() => {}));
+    pendingCandidates.delete(peerId);
+  }
+}
+
+function updateLiveStatus(){
+  const anyConnected = Array.from(peerConnections.values()).some(pc => pc.connectionState === 'connected');
+  if(anyConnected) setCallStatus('Live', 'live');
+  else if(peerConnections.size > 0) setCallStatus('Connecting…', 'connecting');
+  else setCallStatus('Waiting for others to join…', 'connecting');
+}
+
+function createPeerConnection(peerId, isInitiator){
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  peerConnections.set(peerId, pc);
+
+  if(localStream){
+    const audioTrack = localStream.getAudioTracks()[0];
+    if(audioTrack) pc.addTrack(audioTrack, localStream);
+    const videoTrack = (isScreenSharing && screenStream) ? screenStream.getVideoTracks()[0] : cameraVideoTrack;
+    if(videoTrack) pc.addTrack(videoTrack, localStream);
+  }
+
+  pc.ontrack = (event) => {
+    const videoEl = ensureRemoteTile(peerId);
+    videoEl.srcObject = event.streams[0];
+  };
+  pc.onicecandidate = (e) => {
+    if(e.candidate && ws && ws.readyState === WebSocket.OPEN){
+      ws.send(JSON.stringify({ type: 'ice', to: peerId, candidate: e.candidate }));
+    }
+  };
+  pc.onconnectionstatechange = () => {
+    updateLiveStatus();
+    if(['failed','closed'].includes(pc.connectionState)){
+      removePeer(peerId);
+    }
+  };
+
+  if(isInitiator){
+    const dc = pc.createDataChannel('chat');
+    setupDataChannel(peerId, dc);
+  } else {
+    pc.ondatachannel = (event) => setupDataChannel(peerId, event.channel);
+  }
+
+  return pc;
+}
+
+async function initiateOfferTo(peerId){
+  const pc = createPeerConnection(peerId, true);
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  ws.send(JSON.stringify({ type: 'offer', to: peerId, sdp: offer }));
+}
+
+async function handleOffer(fromId, sdp){
+  let pc = peerConnections.get(fromId);
+  if(!pc) pc = createPeerConnection(fromId, false);
+  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+  flushPendingCandidates(fromId);
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  ws.send(JSON.stringify({ type: 'answer', to: fromId, sdp: answer }));
+}
+
+async function handleAnswer(fromId, sdp){
+  const pc = peerConnections.get(fromId);
+  if(!pc) return;
+  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+  flushPendingCandidates(fromId);
+}
+
+function removePeer(peerId){
+  const pc = peerConnections.get(peerId);
+  if(pc){ pc.close(); peerConnections.delete(peerId); }
+  dataChannels.delete(peerId);
+  pendingCandidates.delete(peerId);
+  removeRemoteTile(peerId);
+  checkChatReady();
+  updateLiveStatus();
+}
 
 $('join-btn').onclick = async () => {
   const cfg = requireSetup();
@@ -369,93 +524,55 @@ $('join-btn').onclick = async () => {
     setCallStatus('Camera/mic permission denied', 'error');
     return;
   }
+  cameraVideoTrack = localStream.getVideoTracks()[0];
   $('local-video').srcObject = localStream;
-
-  pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-  pc.ontrack = (event) => {
-    $('remote-video').srcObject = event.streams[0];
-    $('call-empty').style.display = 'none';
-    setCallStatus('Live', 'live');
-  };
-  pc.ondatachannel = (event) => {
-    dataChannel = event.channel;
-    setupDataChannel();
-  };
-  pc.onicecandidate = (e) => {
-    if(e.candidate && ws && ws.readyState === WebSocket.OPEN){
-      ws.send(JSON.stringify({ type: 'ice', candidate: e.candidate }));
-    }
-  };
-  pc.onconnectionstatechange = () => {
-    if(pc.connectionState === 'connected') setCallStatus('Live', 'live');
-    else if(['disconnected','failed','closed'].includes(pc.connectionState)){
-      setCallStatus('Connection lost', 'error');
-      $('call-empty').style.display = 'flex';
-      $('call-empty').textContent = 'Connection lost.';
-    }
-  };
+  updateWaitingTile();
 
   setCallStatus('Connecting to signaling server…', 'connecting');
   const pwdHash = await hashPassword(cfg.password);
   ws = new WebSocket(`${cfg.url}/ws/${encodeURIComponent(cfg.room)}?pwd=${encodeURIComponent(pwdHash)}`);
 
-  ws.onopen = () => setCallStatus('Waiting for the other person…', 'connecting');
+  ws.onopen = () => setCallStatus('Waiting for others to join…', 'connecting');
 
   ws.onmessage = async (event) => {
     const msg = JSON.parse(event.data);
 
     if(msg.type === 'welcome'){
-      myRole = msg.role;
-      setCallStatus('Waiting for the other person…', 'connecting');
-
-      if(myRole === 'second'){
-        // The second person to join creates the data channel and the offer.
-        dataChannel = pc.createDataChannel('chat');
-        setupDataChannel();
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        ws.send(JSON.stringify({ type: 'offer', sdp: offer }));
+      myPeerId = msg.peer_id;
+      updateLiveStatus();
+      // Connect to everyone already in the room -- we're the newcomer, so we initiate.
+      for(const peerId of msg.peers){
+        await initiateOfferTo(peerId);
       }
 
     } else if(msg.type === 'room-full'){
-      setCallStatus('That room already has two people in it', 'error');
-      $('call-empty').style.display = 'flex';
-      $('call-empty').textContent = 'Room is full. Try a different room code.';
+      setCallStatus('That room already has the maximum number of people', 'error');
       ws.close();
 
     } else if(msg.type === 'auth-failed'){
       setCallStatus('Wrong room password', 'error');
-      $('call-empty').style.display = 'flex';
-      $('call-empty').textContent = 'Incorrect password for this room. Hang up and try again.';
       ws.close();
 
     } else if(msg.type === 'peer-joined'){
-      setCallStatus('Connecting…', 'connecting');
+      // Someone new is joining -- they will initiate the connection to us.
+      updateLiveStatus();
 
     } else if(msg.type === 'offer'){
-      await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      ws.send(JSON.stringify({ type: 'answer', sdp: answer }));
+      await handleOffer(msg.from, msg.sdp);
 
     } else if(msg.type === 'answer'){
-      await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      await handleAnswer(msg.from, msg.sdp);
 
     } else if(msg.type === 'ice'){
-      try{ await pc.addIceCandidate(msg.candidate); }catch(e){}
+      queueOrAddCandidate(msg.from, msg.candidate);
 
     } else if(msg.type === 'peer-left'){
-      setCallStatus('The other person left', 'error');
-      $('remote-video').srcObject = null;
-      $('call-empty').style.display = 'flex';
-      $('call-empty').textContent = 'The other person left the call.';
+      removePeer(msg.peer_id);
     }
   };
 
   ws.onerror = () => setCallStatus('Signaling server connection failed', 'error');
-  ws.onclose = () => { if($('call-status').textContent === 'Live') setCallStatus('Disconnected from server', 'error'); };
+  ws.onclose = () => { if($('call-status').textContent !== 'Live') setCallStatus('Disconnected from server', 'error'); };
 };
 
 $('toggle-mic').onclick = () => {
@@ -474,13 +591,60 @@ $('toggle-cam').onclick = () => {
   $('toggle-cam').classList.toggle('active', !camOn);
 };
 
+/* ---------------- Screen sharing ---------------- */
+function replaceOutgoingVideoTrack(newTrack){
+  for(const pc of peerConnections.values()){
+    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+    if(sender) sender.replaceTrack(newTrack);
+  }
+}
+
+$('toggle-screen').onclick = async () => {
+  if(!isScreenSharing){
+    let stream;
+    try{
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    }catch(err){
+      return; // user cancelled the picker, or unsupported on this browser
+    }
+    screenStream = stream;
+    isScreenSharing = true;
+    const screenTrack = screenStream.getVideoTracks()[0];
+    replaceOutgoingVideoTrack(screenTrack);
+    $('local-video').srcObject = screenStream;
+    $('toggle-screen').textContent = '🛑 Stop sharing';
+    $('toggle-screen').classList.add('active');
+    // If the user stops sharing via the browser's own "Stop sharing" UI:
+    screenTrack.onended = () => stopScreenShare();
+  } else {
+    stopScreenShare();
+  }
+};
+
+function stopScreenShare(){
+  if(screenStream){ screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
+  isScreenSharing = false;
+  replaceOutgoingVideoTrack(cameraVideoTrack);
+  $('local-video').srcObject = localStream;
+  $('toggle-screen').textContent = '🖥️ Share screen';
+  $('toggle-screen').classList.remove('active');
+}
+
 function endCall(){
-  if(pc){ pc.close(); pc = null; }
+  for(const pc of peerConnections.values()) pc.close();
+  peerConnections.clear();
+  dataChannels.clear();
+  pendingCandidates.clear();
+  for(const peerId of Array.from(remoteTiles.keys())) removeRemoteTile(peerId);
+
   if(ws){ ws.close(); ws = null; }
   if(localStream){ localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-  dataChannel = null;
+  if(screenStream){ screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
+  isScreenSharing = false;
+  cameraVideoTrack = null;
+  myPeerId = null;
+
   $('local-video').srcObject = null;
-  $('remote-video').srcObject = null;
   $('chat-log').innerHTML = '';
   $('chat-input').disabled = true;
   $('chat-send').disabled = true;
@@ -488,13 +652,16 @@ function endCall(){
   unreadCount = 0;
   $('chat-panel').classList.remove('open');
   $('unread-badge').classList.remove('show');
+
   micOn = true; camOn = true;
   $('toggle-mic').textContent = '🎙️ Mute';
   $('toggle-mic').classList.remove('active');
   $('toggle-cam').textContent = '🎥 Hide cam';
   $('toggle-cam').classList.remove('active');
-  $('call-empty').style.display = 'flex';
-  $('call-empty').textContent = 'Waiting for the other person to join…';
+  $('toggle-screen').textContent = '🖥️ Share screen';
+  $('toggle-screen').classList.remove('active');
+
+  updateWaitingTile();
   setCallStatus('Not connected');
   stageCall.classList.remove('active');
   setupPanel.style.display = 'block';

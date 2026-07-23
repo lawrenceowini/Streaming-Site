@@ -55,15 +55,12 @@
   .ghost-btn:hover{border-color:var(--accent);color:var(--accent);}
   .hint{font-size:11.5px;color:var(--text-dim);margin-top:6px;line-height:1.5;}
 
-  .modes{display:flex;gap:14px;width:100%;max-width:460px;flex-wrap:wrap;}
-  .mode-card{flex:1;min-width:180px;background:var(--bg-panel);border:1px solid var(--line);
-    border-radius:var(--radius);padding:18px;text-align:center;cursor:pointer;transition:border-color .15s;}
-  .mode-card:hover{border-color:var(--accent-dim);}
-  .mode-card h3{margin:8px 0 4px;font-size:14px;}
-  .mode-card p{margin:0;font-size:12px;color:var(--text-dim);}
-  .mode-icon{font-size:22px;}
+  .join-card{width:100%;max-width:460px;background:var(--bg-panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:22px;text-align:center;}
+  .join-card p{margin:6px 0 16px;font-size:12.5px;color:var(--text-dim);}
+  .btn-join{width:100%;}
 
-  .stage{width:100%;max-width:460px;margin-top:18px;display:none;}
+  .stage{width:100%;max-width:520px;margin-top:18px;display:none;}
   .stage.active{display:block;}
   .status-bar{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;
     color:var(--text-dim);margin-bottom:12px;}
@@ -72,11 +69,15 @@
   .status-dot.live{background:var(--ok);}
   .status-dot.error{background:var(--error);}
 
-  .video-frame{width:100%;aspect-ratio:9/16;max-height:70vh;background:#000;border-radius:var(--radius);
+  .call-frame{width:100%;aspect-ratio:4/3;max-height:70vh;background:#000;border-radius:var(--radius);
     overflow:hidden;border:1px solid var(--line);position:relative;}
-  video{width:100%;height:100%;object-fit:cover;display:block;}
+  video{width:100%;height:100%;object-fit:cover;display:block;background:#000;}
+  #remote-video{width:100%;height:100%;}
+  #local-video{position:absolute;bottom:12px;right:12px;width:28%;max-width:140px;aspect-ratio:3/4;
+    border-radius:8px;border:2px solid var(--bg-panel);object-fit:cover;box-shadow:0 2px 10px rgba(0,0,0,.4);}
   .empty-state{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    color:var(--text-dim);font-size:13px;font-family:var(--mono);text-align:center;padding:20px;}
+    color:var(--text-dim);font-size:13px;font-family:var(--mono);text-align:center;padding:20px;
+    background:#000;}
 
   .controls{display:flex;gap:10px;margin-top:14px;}
   .btn{flex:1;padding:12px 16px;border-radius:8px;border:none;font-family:var(--mono);
@@ -84,7 +85,11 @@
   .btn-primary{background:var(--accent);color:#1a1200;}
   .btn-primary:hover{background:#f0ae4d;}
   .btn-secondary{background:transparent;border:1px solid var(--line);color:var(--text);}
-  .btn-secondary:hover{border-color:var(--error);color:var(--error);}
+  .btn-secondary:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-secondary.active{background:var(--bg-panel-2);border-color:var(--accent);color:var(--accent);}
+  .btn-hangup{background:transparent;border:1px solid var(--error);color:var(--error);flex:1;
+    padding:12px 16px;border-radius:8px;font-family:var(--mono);font-size:13px;cursor:pointer;font-weight:600;}
+  .btn-hangup:hover{background:rgba(217,83,79,.12);}
   .btn:disabled{opacity:.4;cursor:not-allowed;}
 
   .back-link{margin-top:22px;color:var(--text-dim);font-size:12px;cursor:pointer;
@@ -97,7 +102,7 @@
 <body>
 
   <div class="brand"><span class="brand-node"></span><h1>LiveCam</h1></div>
-  <p class="tagline">Stream a camera from one device to another, direct and peer-to-peer, over your own signal.</p>
+  <p class="tagline">A private two-way video call, direct and peer-to-peer, over your own signal.</p>
 
   <div class="setup" id="setup-panel">
     <div class="field">
@@ -111,52 +116,32 @@
         <input type="text" id="room-code" placeholder="e.g. amber-falcon-71" />
         <button class="ghost-btn" id="gen-code">Generate</button>
       </div>
-      <p class="hint">Anyone with this code and the server URL can join the room — keep it private.</p>
+      <p class="hint">Share this code with the other person — whoever enters it joins the same call.</p>
     </div>
   </div>
 
-  <div class="modes" id="mode-select">
-    <div class="mode-card" id="pick-broadcast">
-      <div class="mode-icon">📡</div>
-      <h3>Broadcast</h3>
-      <p>Send this device's camera (usually your laptop)</p>
-    </div>
-    <div class="mode-card" id="pick-view">
-      <div class="mode-icon">📱</div>
-      <h3>View</h3>
-      <p>Watch the stream (usually your phone)</p>
-    </div>
+  <div class="join-card" id="join-card">
+    <p>Enter a room code above, share it with the other device, then both join.</p>
+    <button class="btn btn-primary btn-join" id="join-btn">Join call</button>
   </div>
 
-  <!-- Broadcaster stage -->
-  <div class="stage" id="stage-broadcast">
-    <div class="status-bar"><span class="status-dot" id="bc-dot"></span><span id="bc-status">Not started</span></div>
-    <div class="video-frame">
-      <video id="bc-video" autoplay muted playsinline></video>
-      <div class="empty-state" id="bc-empty">Camera preview will appear here</div>
+  <!-- Call stage -->
+  <div class="stage" id="stage-call">
+    <div class="status-bar"><span class="status-dot" id="call-dot"></span><span id="call-status">Not connected</span></div>
+    <div class="call-frame">
+      <video id="remote-video" autoplay playsinline></video>
+      <div class="empty-state" id="call-empty">Waiting for the other person to join…</div>
+      <video id="local-video" autoplay muted playsinline></video>
     </div>
     <div class="controls">
-      <button class="btn btn-primary" id="bc-start">Start broadcasting</button>
-      <button class="btn btn-secondary" id="bc-stop" disabled>Stop</button>
+      <button class="btn-secondary" id="toggle-mic">🎙️ Mute</button>
+      <button class="btn-secondary" id="toggle-cam">🎥 Hide cam</button>
+      <button class="btn-hangup" id="hangup">Hang up</button>
     </div>
-    <div class="back-link" id="bc-back">← choose a different mode</div>
+    <div class="back-link" id="call-back">← back to setup</div>
   </div>
 
-  <!-- Viewer stage -->
-  <div class="stage" id="stage-view">
-    <div class="status-bar"><span class="status-dot" id="v-dot"></span><span id="v-status">Not connected</span></div>
-    <div class="video-frame">
-      <video id="v-video" autoplay playsinline></video>
-      <div class="empty-state" id="v-empty">Waiting for the broadcast to start…</div>
-    </div>
-    <div class="controls">
-      <button class="btn btn-primary" id="v-start">Connect</button>
-      <button class="btn btn-secondary" id="v-stop" disabled>Disconnect</button>
-    </div>
-    <div class="back-link" id="v-back">← choose a different mode</div>
-  </div>
-
-  <footer>Video and audio travel directly between devices via WebRTC.<br>The server only relays connection setup, never the stream itself.</footer>
+  <footer>Video and audio travel directly between devices via WebRTC.<br>The server only relays connection setup, never the call itself.</footer>
 
 <script>
 const ICE_SERVERS = [
@@ -168,9 +153,8 @@ const ICE_SERVERS = [
 
 const $ = (id) => document.getElementById(id);
 const setupPanel = $('setup-panel');
-const modeSelect = $('mode-select');
-const stageBroadcast = $('stage-broadcast');
-const stageView = $('stage-view');
+const joinCard = $('join-card');
+const stageCall = $('stage-call');
 const serverUrlInput = $('server-url');
 const roomCodeInput = $('room-code');
 
@@ -201,170 +185,142 @@ function requireSetup(){
   return { url, room };
 }
 
-function showStage(stage){
-  modeSelect.style.display = 'none';
+function setCallStatus(text, cls){
+  $('call-status').textContent = text;
+  $('call-dot').className = 'status-dot' + (cls ? ' ' + cls : '');
+}
+
+/* ---------------- Call state ---------------- */
+let pc = null, ws = null, localStream = null, myRole = null;
+let micOn = true, camOn = true;
+
+$('join-btn').onclick = async () => {
+  const cfg = requireSetup();
+  if(!cfg) return;
   setupPanel.style.display = 'none';
-  stageBroadcast.classList.remove('active');
-  stageView.classList.remove('active');
-  stage.classList.add('active');
-}
-function backToModes(){
-  modeSelect.style.display = 'flex';
-  setupPanel.style.display = 'block';
-  stageBroadcast.classList.remove('active');
-  stageView.classList.remove('active');
-}
+  joinCard.style.display = 'none';
+  stageCall.classList.add('active');
+  setCallStatus('Requesting camera…', 'connecting');
 
-/* ---------------- Broadcaster ---------------- */
-let bcPC = null, bcWS = null, bcStream = null;
-
-function setBcStatus(text, cls){
-  $('bc-status').textContent = text;
-  $('bc-dot').className = 'status-dot' + (cls ? ' ' + cls : '');
-}
-
-$('pick-broadcast').onclick = () => {
-  const cfg = requireSetup();
-  if(!cfg) return;
-  showStage(stageBroadcast);
-};
-$('bc-back').onclick = () => { bcStop(); backToModes(); };
-
-$('bc-start').onclick = async () => {
-  const cfg = requireSetup();
-  if(!cfg) return;
-  $('bc-start').disabled = true;
-  setBcStatus('Requesting camera…', 'connecting');
   try{
-    bcStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   }catch(err){
-    setBcStatus('Camera/mic permission denied', 'error');
-    $('bc-start').disabled = false;
+    setCallStatus('Camera/mic permission denied', 'error');
     return;
   }
-  $('bc-video').srcObject = bcStream;
-  $('bc-empty').style.display = 'none';
-  $('bc-stop').disabled = false;
+  $('local-video').srcObject = localStream;
 
-  setBcStatus('Waiting for a viewer to join…', 'connecting');
-  bcWS = new WebSocket(`${cfg.url}/ws/${encodeURIComponent(cfg.room)}`);
+  pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
-  bcWS.onmessage = async (event) => {
+  pc.ontrack = (event) => {
+    $('remote-video').srcObject = event.streams[0];
+    $('call-empty').style.display = 'none';
+    setCallStatus('Live', 'live');
+  };
+  pc.onicecandidate = (e) => {
+    if(e.candidate && ws && ws.readyState === WebSocket.OPEN){
+      ws.send(JSON.stringify({ type: 'ice', candidate: e.candidate }));
+    }
+  };
+  pc.onconnectionstatechange = () => {
+    if(pc.connectionState === 'connected') setCallStatus('Live', 'live');
+    else if(['disconnected','failed','closed'].includes(pc.connectionState)){
+      setCallStatus('Connection lost', 'error');
+      $('call-empty').style.display = 'flex';
+      $('call-empty').textContent = 'Connection lost.';
+    }
+  };
+
+  setCallStatus('Connecting to signaling server…', 'connecting');
+  ws = new WebSocket(`${cfg.url}/ws/${encodeURIComponent(cfg.room)}`);
+
+  ws.onopen = () => setCallStatus('Waiting for the other person…', 'connecting');
+
+  ws.onmessage = async (event) => {
     const msg = JSON.parse(event.data);
-    if(msg.type === 'viewer-join'){
-      await createBroadcasterOffer();
+
+    if(msg.type === 'welcome'){
+      myRole = msg.role;
+      setCallStatus('Waiting for the other person…', 'connecting');
+
+    } else if(msg.type === 'room-full'){
+      setCallStatus('That room already has two people in it', 'error');
+      $('call-empty').style.display = 'flex';
+      $('call-empty').textContent = 'Room is full. Try a different room code.';
+      ws.close();
+
+    } else if(msg.type === 'peer-joined'){
+      // We were already here ("first") -- the newcomer will send the offer.
+      setCallStatus('Connecting…', 'connecting');
+
+    } else if(msg.type === 'offer'){
+      await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(JSON.stringify({ type: 'answer', sdp: answer }));
+
     } else if(msg.type === 'answer'){
-      await bcPC.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-      setBcStatus('Live', 'live');
-    } else if(msg.type === 'ice' && bcPC){
-      try{ await bcPC.addIceCandidate(msg.candidate); }catch(e){}
+      await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+
+    } else if(msg.type === 'ice'){
+      try{ await pc.addIceCandidate(msg.candidate); }catch(e){}
+
+    } else if(msg.type === 'peer-left'){
+      setCallStatus('The other person left', 'error');
+      $('remote-video').srcObject = null;
+      $('call-empty').style.display = 'flex';
+      $('call-empty').textContent = 'The other person left the call.';
+    }
+
+    // Whoever joined second makes the offer, right after learning their role.
+    if(msg.type === 'welcome' && msg.role === 'second'){
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      ws.send(JSON.stringify({ type: 'offer', sdp: offer }));
     }
   };
-  bcWS.onerror = () => setBcStatus('Signaling server connection failed', 'error');
-  bcWS.onclose = () => { if($('bc-status').textContent !== 'Live') setBcStatus('Disconnected from server', 'error'); };
+
+  ws.onerror = () => setCallStatus('Signaling server connection failed', 'error');
+  ws.onclose = () => { if($('call-status').textContent === 'Live') setCallStatus('Disconnected from server', 'error'); };
 };
 
-async function createBroadcasterOffer(){
-  bcPC = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-  bcStream.getTracks().forEach(track => bcPC.addTrack(track, bcStream));
-  bcPC.onicecandidate = (e) => {
-    if(e.candidate) bcWS.send(JSON.stringify({ type: 'ice', candidate: e.candidate }));
-  };
-  bcPC.onconnectionstatechange = () => {
-    if(bcPC.connectionState === 'connected') setBcStatus('Live', 'live');
-    else if(['disconnected','failed','closed'].includes(bcPC.connectionState)) setBcStatus('Connection lost', 'error');
-  };
-  const offer = await bcPC.createOffer();
-  await bcPC.setLocalDescription(offer);
-  bcWS.send(JSON.stringify({ type: 'offer', sdp: offer }));
-}
-
-function bcStop(){
-  if(bcPC){ bcPC.close(); bcPC = null; }
-  if(bcWS){ bcWS.close(); bcWS = null; }
-  if(bcStream){ bcStream.getTracks().forEach(t => t.stop()); bcStream = null; }
-  $('bc-video').srcObject = null;
-  $('bc-empty').style.display = 'flex';
-  $('bc-start').disabled = false;
-  $('bc-stop').disabled = true;
-  setBcStatus('Not started');
-}
-$('bc-stop').onclick = bcStop;
-
-/* ---------------- Viewer ---------------- */
-let vPC = null, vWS = null, viewerJoinTimer = null;
-
-function setVStatus(text, cls){
-  $('v-status').textContent = text;
-  $('v-dot').className = 'status-dot' + (cls ? ' ' + cls : '');
-}
-
-$('pick-view').onclick = () => {
-  const cfg = requireSetup();
-  if(!cfg) return;
-  showStage(stageView);
-};
-$('v-back').onclick = () => { vStop(); backToModes(); };
-
-$('v-start').onclick = () => {
-  const cfg = requireSetup();
-  if(!cfg) return;
-  $('v-start').disabled = true;
-  $('v-stop').disabled = false;
-  setVStatus('Connecting to signaling server…', 'connecting');
-
-  vPC = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-  vPC.ontrack = (event) => {
-    $('v-video').srcObject = event.streams[0];
-    $('v-empty').style.display = 'none';
-    setVStatus('Live', 'live');
-  };
-  vPC.onicecandidate = (e) => {
-    if(e.candidate) vWS.send(JSON.stringify({ type: 'ice', candidate: e.candidate }));
-  };
-  vPC.onconnectionstatechange = () => {
-    if(['disconnected','failed','closed'].includes(vPC.connectionState)) setVStatus('Connection lost', 'error');
-  };
-
-  vWS = new WebSocket(`${cfg.url}/ws/${encodeURIComponent(cfg.room)}`);
-
-  vWS.onopen = () => {
-    setVStatus('Waiting for broadcast…', 'connecting');
-    // Keep announcing until an offer arrives, in case the broadcaster
-    // connects to the server after we do.
-    vWS.send(JSON.stringify({ type: 'viewer-join' }));
-    viewerJoinTimer = setInterval(() => {
-      if(vWS && vWS.readyState === WebSocket.OPEN) vWS.send(JSON.stringify({ type: 'viewer-join' }));
-    }, 2000);
-  };
-
-  vWS.onmessage = async (event) => {
-    const msg = JSON.parse(event.data);
-    if(msg.type === 'offer'){
-      clearInterval(viewerJoinTimer);
-      await vPC.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-      const answer = await vPC.createAnswer();
-      await vPC.setLocalDescription(answer);
-      vWS.send(JSON.stringify({ type: 'answer', sdp: answer }));
-    } else if(msg.type === 'ice' && vPC){
-      try{ await vPC.addIceCandidate(msg.candidate); }catch(e){}
-    }
-  };
-  vWS.onerror = () => setVStatus('Signaling server connection failed', 'error');
-  vWS.onclose = () => { if($('v-status').textContent !== 'Live') setVStatus('Disconnected from server', 'error'); };
+$('toggle-mic').onclick = () => {
+  if(!localStream) return;
+  micOn = !micOn;
+  localStream.getAudioTracks().forEach(t => t.enabled = micOn);
+  $('toggle-mic').textContent = micOn ? '🎙️ Mute' : '🎙️ Unmute';
+  $('toggle-mic').classList.toggle('active', !micOn);
 };
 
-function vStop(){
-  clearInterval(viewerJoinTimer);
-  if(vPC){ vPC.close(); vPC = null; }
-  if(vWS){ vWS.close(); vWS = null; }
-  $('v-video').srcObject = null;
-  $('v-empty').style.display = 'flex';
-  $('v-start').disabled = false;
-  $('v-stop').disabled = true;
-  setVStatus('Not connected');
+$('toggle-cam').onclick = () => {
+  if(!localStream) return;
+  camOn = !camOn;
+  localStream.getVideoTracks().forEach(t => t.enabled = camOn);
+  $('toggle-cam').textContent = camOn ? '🎥 Hide cam' : '🎥 Show cam';
+  $('toggle-cam').classList.toggle('active', !camOn);
+};
+
+function endCall(){
+  if(pc){ pc.close(); pc = null; }
+  if(ws){ ws.close(); ws = null; }
+  if(localStream){ localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  $('local-video').srcObject = null;
+  $('remote-video').srcObject = null;
+  micOn = true; camOn = true;
+  $('toggle-mic').textContent = '🎙️ Mute';
+  $('toggle-mic').classList.remove('active');
+  $('toggle-cam').textContent = '🎥 Hide cam';
+  $('toggle-cam').classList.remove('active');
+  $('call-empty').style.display = 'flex';
+  $('call-empty').textContent = 'Waiting for the other person to join…';
+  setCallStatus('Not connected');
+  stageCall.classList.remove('active');
+  setupPanel.style.display = 'block';
+  joinCard.style.display = 'block';
 }
-$('v-stop').onclick = vStop;
+$('hangup').onclick = endCall;
+$('call-back').onclick = endCall;
 </script>
 </body>
 </html>

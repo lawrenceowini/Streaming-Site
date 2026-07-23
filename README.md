@@ -1,6 +1,8 @@
-# LiveCam — Phase 1
+# LiveCam — Phase 2
 
-Stream one device's camera (e.g. your laptop) to another (e.g. your phone) in real time, directly over WebRTC. The backend only helps the two devices find each other; the actual video never passes through it.
+A private two-way video call between two devices, direct over WebRTC — both sides see and hear each other, like a video chat. The backend only helps the two devices find each other; the actual audio/video never passes through it.
+
+> Phase 1 (one-way laptop → phone viewer) is preserved for reference in `backend/main.py.phase1.bak`.
 
 ```
 livecam/
@@ -15,10 +17,13 @@ livecam/
 
 ## How it works
 
-1. Open the site on your laptop, pick **Broadcast**, and start the camera.
-2. Open the same site on your phone, pick **View**, and connect.
-3. Both devices must use the **same signaling server URL** and the **same room code**.
-4. Once connected, video streams peer-to-peer. The signaling server just relayed a handshake and then steps out of the way.
+1. Open the site on both devices.
+2. Enter the **same signaling server URL** and the **same room code** on both.
+3. Both click **Join call**. Whoever joins first waits; whoever joins second automatically starts the connection.
+4. Once connected, each side sees the other's camera (large) and their own (small, bottom-right), and audio/video streams directly peer-to-peer. The signaling server only relayed the handshake and then steps out of the way.
+5. Each side can mute their mic or hide their camera independently with the controls under the call.
+
+Rooms hold at most 2 people — a third device trying to join the same room code will be told the room is full.
 
 ## 1. Deploy the backend (Render)
 
@@ -40,12 +45,12 @@ Note: Render's free tier spins down when idle, so the first connection after a w
 
 ## 3. Use it
 
-1. Open the Vercel URL on your laptop.
-2. Paste in your Render **wss://** URL under "Signaling server", or generate/enter a room code.
-3. Click **Broadcast** → **Start broadcasting**, and allow camera/mic access.
-4. Open the same Vercel URL on your phone, enter the *same* server URL and room code, click **View** → **Connect**.
+1. Open the Vercel URL on the first device.
+2. Paste in your Render **wss://** URL under "Signaling server", and generate (or enter) a room code.
+3. Click **Join call**, and allow camera/mic access.
+4. Open the same Vercel URL on the second device, enter the *same* server URL and room code, click **Join call**, and allow camera/mic access.
 
-You should see your laptop's camera feed on your phone within a few seconds.
+Within a few seconds both devices should see and hear each other.
 
 ## Notes on reliability & security (Phase 1 scope)
 
@@ -65,4 +70,4 @@ Then use `ws://localhost:8000` as the signaling server URL, and open `frontend/i
 
 ## What's next (from the original roadmap)
 
-This covers **Phase 1: laptop webcam → phone viewer**. Later phases in your plan — two-way video, authentication/rooms, messaging, group calls, screen sharing/recording, and eventually a full encrypted messenger — build on this same signaling foundation. Happy to help scope any of those next.
+This covers **Phase 1 (one-way viewer)** and **Phase 2 (two-way calls)**. Later phases in your plan — secure messaging, voice-only calls, group meetings, screen sharing/recording, and eventually a full encrypted messenger — build on this same signaling foundation. Happy to help scope any of those next.

@@ -154,6 +154,11 @@
       </div>
       <p class="hint">Anyone with this code and the server URL can join — keep it private.</p>
     </div>
+    <div class="field">
+      <label for="room-password">Room password (optional)</label>
+      <input type="text" id="room-password" placeholder="Leave blank for no password" autocomplete="off" />
+      <p class="hint">Whoever joins first sets the password for the room. Share it separately from the invite link — not through it — so a leaked link alone can't get someone in.</p>
+    </div>
   </div>
 
   <div class="join-card" id="join-card">
@@ -245,11 +250,21 @@ function toDisplayUrl(wsUrl){
 function requireSetup(){
   const url = normalizeWsUrl(serverUrlInput.value);
   const room = roomCodeInput.value.trim();
+  const password = $('room-password').value;
   if(!url || !room){
     alert('Please enter both the signaling server URL and a room code first.');
     return null;
   }
-  return { url, room };
+  return { url, room, password };
+}
+
+// Hash the password client-side (SHA-256) so the server only ever sees a hash,
+// never the plaintext. Empty password hashes to an empty string (= no password).
+async function hashPassword(password){
+  if(!password) return '';
+  const data = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 $('copy-link').onclick = async () => {
@@ -383,7 +398,8 @@ $('join-btn').onclick = async () => {
   };
 
   setCallStatus('Connecting to signaling server…', 'connecting');
-  ws = new WebSocket(`${cfg.url}/ws/${encodeURIComponent(cfg.room)}`);
+  const pwdHash = await hashPassword(cfg.password);
+  ws = new WebSocket(`${cfg.url}/ws/${encodeURIComponent(cfg.room)}?pwd=${encodeURIComponent(pwdHash)}`);
 
   ws.onopen = () => setCallStatus('Waiting for the other person…', 'connecting');
 
@@ -407,6 +423,12 @@ $('join-btn').onclick = async () => {
       setCallStatus('That room already has two people in it', 'error');
       $('call-empty').style.display = 'flex';
       $('call-empty').textContent = 'Room is full. Try a different room code.';
+      ws.close();
+
+    } else if(msg.type === 'auth-failed'){
+      setCallStatus('Wrong room password', 'error');
+      $('call-empty').style.display = 'flex';
+      $('call-empty').textContent = 'Incorrect password for this room. Hang up and try again.';
       ws.close();
 
     } else if(msg.type === 'peer-joined'){

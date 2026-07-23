@@ -1,8 +1,8 @@
-# LiveCam — Phase 3
+# LiveCam — Phase 3 + room passwords
 
-A private two-way video call with encrypted text chat, direct over WebRTC, plus shareable invite links so joining is one click instead of copy-pasting a URL and room code by hand.
+A private two-way video call with encrypted text chat, direct over WebRTC, shareable invite links, and an optional room password as a second factor beyond the room code.
 
-> Phase 1 (one-way viewer) and Phase 2 (two-way call, no chat/links) are preserved in `backend/main.py.phase1.bak` for reference — the Phase 2 signaling server also still works as-is with this Phase 3 frontend, since chat and invite links don't require any server changes.
+> Phase 1 (one-way viewer) and Phase 2 (two-way call, no chat/links) are preserved in `backend/main.py.phase1.bak` for reference.
 
 ```
 livecam/
@@ -32,7 +32,17 @@ An invite link looks like:
 ```
 https://your-app.vercel.app/?server=https%3A%2F%2Flivecam-signaling.onrender.com&room=amber-falcon-71
 ```
-It just pre-fills the two setup fields — it does **not** auto-join the call. That's intentional: whoever opens the link still has to click Join call themselves, so nothing about their camera or microphone happens without a deliberate action on their end. Anyone with the link can join the room, so treat it like a room key: share it only with the person you're calling (e.g. over a messaging app you both already trust), and generate a fresh room code for each call if you want old links to stop working.
+It just pre-fills the two setup fields — it does **not** auto-join the call, and it does **not** include the room password (see below). That's intentional: whoever opens the link still has to click Join call themselves, so nothing about their camera or microphone happens without a deliberate action on their end. Anyone with the link can join the room, so treat it like a room key: share it only with the person you're calling (e.g. over a messaging app you both already trust), and generate a fresh room code for each call if you want old links to stop working.
+
+### About the room password
+
+There's now an optional "Room password" field. Whoever joins a room **first** sets its password for that call (leave it blank for no password, same as before). Anyone joining after that must enter the same password or the server rejects them before they're let into the room.
+
+A few things worth knowing:
+- The server only ever sees a **SHA-256 hash** of the password, computed in the browser — never the plaintext.
+- The password is deliberately **not** part of the invite link. The link is for convenience; the password is a second factor you share a different way (say it out loud, send it in a separate message) so that a leaked or forwarded link by itself isn't enough to get in.
+- The password lives only in memory on the signaling server for as long as the room is occupied. Once both people leave, the room (and its password) is forgotten — the next person to use that room code sets a new one.
+- This is a lightweight deterrent, not enterprise-grade auth: there's no rate-limiting on password attempts yet, and the room code + password model is still simpler than real user accounts. Good enough to keep casual/unwanted joins out; if you need stronger guarantees later, real authentication (from the original roadmap) is the next step up.
 
 ## 1. Deploy the backend (Render)
 
@@ -55,16 +65,16 @@ Note: Render's free tier spins down when idle, so the first connection after a w
 ## 3. Use it
 
 1. Open the Vercel URL on the first device.
-2. Paste in your Render **wss://** URL under "Signaling server", and generate (or enter) a room code.
-3. Click **Copy invite link**, and send that link to the other person (text, email, whatever you'd normally use).
-4. The other person opens the link — their fields are pre-filled — and both of you click **Join call**, allowing camera/mic access when prompted.
+2. Paste in your Render **wss://** URL under "Signaling server", generate (or enter) a room code, and optionally set a room password.
+3. Click **Copy invite link**, and send that link to the other person (text, email, whatever you'd normally use). Share the password separately, if you set one.
+4. The other person opens the link — server and room fields are pre-filled — enters the password you told them, and both of you click **Join call**, allowing camera/mic access when prompted.
 
 Within a few seconds both devices should see and hear each other, and you can open the chat panel to send text messages too.
 
-## Notes on reliability & security (Phase 3 scope)
+## Notes on reliability & security
 
 - **NAT traversal:** a public STUN server and a free public TURN test server (openrelay.metered.ca) are included so this works across different WiFi/cellular networks. The public TURN server is rate-limited and fine for personal testing, but swap in your own (e.g. a paid Twilio or Cloudflare TURN service) if you rely on this daily.
-- **The room code (whether typed in or embedded in an invite link) is the only access control right now.** Anyone with it can join. Keep links and codes private, share them only over a channel you trust, and generate a fresh code per call if that matters to you.
+- **Access control is the room code plus an optional password.** Both are shared secrets, not real authentication — there are no accounts. Keep links, codes, and passwords private, share them over channels you trust, and generate a fresh room code (and password) per call if that matters to you.
 - **Video, audio, and chat are all encrypted in transit** — WebRTC requires DTLS/SRTP for media and DataChannels by design, so this is on by default, not something extra that was bolted on. The signaling server never sees any of that content, only the connection setup messages needed to establish it.
 - **HTTPS/WSS only in production** — browsers block camera access and mixed-content WebSocket connections over plain HTTP, so make sure you're using the `https://`/`wss://` URLs Render and Vercel give you.
 

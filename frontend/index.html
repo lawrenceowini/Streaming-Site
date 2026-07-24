@@ -662,8 +662,16 @@
           placeholder="wss://your-app.onrender.com"
         />
         <p class="hint">
-          The WebSocket URL of your deployed backend. Everyone must use the same
-          one.
+          The WebSocket URL of your deployed backend — everyone in the call
+          needs the same one. Saved to your account automatically, so you won't
+          need to re-enter it next time.
+        </p>
+        <p
+          class="hint"
+          id="server-save-hint"
+          style="display: none; color: var(--ok)"
+        >
+          ✓ Saved to your account
         </p>
       </div>
       <div class="field">
@@ -793,6 +801,7 @@
       /* ---------------- Auth ---------------- */
       let currentSession = null;
       let authMode = "login"; // 'login' | 'signup'
+      let inviteHadServerParam = false; // true if ?server=... was in the URL on load
 
       function showAuthMsg(text, kind) {
         // kind: 'error' | 'info'
@@ -817,6 +826,14 @@
         $("account-email").textContent = session.user.email;
         setupPanel.style.display = "block";
         joinCard.style.display = "block";
+
+        // An invite link's ?server=... always wins over the saved default, since
+        // it reflects whoever sent the link, not this account's own history.
+        if (!inviteHadServerParam) {
+          const savedServer =
+            session.user.user_metadata && session.user.user_metadata.server_url;
+          if (savedServer) serverUrlInput.value = savedServer;
+        }
       }
 
       function toggleAuthMode() {
@@ -891,6 +908,25 @@
         return data.session ? data.session.access_token : null;
       }
 
+      // Whenever the signaling server field changes (and the person is signed in),
+      // save it to their account so they don't have to re-type it next time.
+      let serverSaveHintTimer = null;
+      serverUrlInput.addEventListener("change", async () => {
+        if (!currentSession) return;
+        const val = serverUrlInput.value.trim();
+        if (!val) return;
+        const { error } = await sb.auth.updateUser({
+          data: { server_url: val },
+        });
+        if (error) return;
+        const hint = $("server-save-hint");
+        hint.style.display = "block";
+        clearTimeout(serverSaveHintTimer);
+        serverSaveHintTimer = setTimeout(() => {
+          hint.style.display = "none";
+        }, 2500);
+      });
+
       // Check for an existing session on page load.
       (async () => {
         const { data } = await sb.auth.getSession();
@@ -921,7 +957,10 @@
         const s = params.get("server");
         const r = params.get("room");
         if (s || r) {
-          if (s) serverUrlInput.value = s;
+          if (s) {
+            serverUrlInput.value = s;
+            inviteHadServerParam = true;
+          }
           if (r) roomCodeInput.value = r;
           $("invite-banner").style.display = "block";
         } else {

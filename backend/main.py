@@ -12,36 +12,39 @@ connection to every other participant. MAX_PEERS_PER_ROOM is kept modest
 for that reason -- for larger meetings you'd want a real SFU (mediasoup,
 Janus, LiveKit) doing the media routing instead.
 
-Authentication: instead of a shared room password, each connecting client
-must present a valid Supabase session access token (the `token` query
-param). The server verifies it by asking Supabase's own auth API whether
-the token is valid -- this server never handles passwords or creates
-sessions itself, Supabase does. Anyone with a valid account and the room
-code/server URL can join any room; there's no per-room membership list
-(matches the "simplest" access model -- see README for the invite-only
-alternative if you want to restrict specific rooms to specific people
-later).
+Authentication: each connecting client must present a valid Supabase
+session access token (the `token` query param), verified against
+Supabase's own auth API. This server never handles passwords itself.
+
+Room access control: on top of authentication, each room has an owner
+(whoever created it -- the first person to ever connect with that room
+code) and an allow-list of emails. Only the owner and allowed emails may
+join. This is stored in a small Supabase table (`room_access`, see
+backend/supabase_setup.sql) reached through the service_role key, which
+bypasses Row Level Security -- that key must stay server-side only, never
+in frontend code.
 
 Required environment variables (set these in Render's dashboard, not in
 this file):
-  SUPABASE_URL       e.g. https://abcdefgh.supabase.co
-  SUPABASE_ANON_KEY   the "anon public" key from Project Settings -> API
+  SUPABASE_URL              e.g. https://abcdefgh.supabase.co
+  SUPABASE_ANON_KEY          the "anon public" key -- used to verify user tokens
+  SUPABASE_SERVICE_ROLE_KEY  the "service_role" secret key -- used to manage room_access
 
-Protocol:
-- Each connection is assigned a short peer_id.
-- On join, the new peer gets
-    {"type": "welcome", "peer_id": ..., "peers": [{"peer_id":..., "email":...}, ...]}
-- Existing peers get {"type": "peer-joined", "peer_id": <new id>, "email": <new email>}.
-- The new peer is expected to initiate a connection (offer) to each existing
-  peer -- this avoids both sides racing to make an offer.
-- offer/answer/ice messages must include a "to" field naming the target
-  peer_id; the server adds a "from" field and relays only to that peer.
-- On disconnect, remaining peers get {"type": "peer-left", "peer_id": ...}.
+Protocol additions over the plain-auth version:
+- The connecting client may include an `invited` query param: a comma-
+  separated list of emails. This only has an effect for the room's owner
+  -- when the owner connects with a non-empty `invited` list, those emails
+  are added to the room's allow-list (existing entries are kept, not
+  replaced). Anyone else's `invited` param is ignored.
+- If a room code has never been used before, the first person to connect
+  becomes its owner, and their own email is automatically allowed.
+- Anyone who is neither the owner nor on the allow-list gets
+  {"type": "not-invited"} and the connection is closed.
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import httpx
 import json
 import logging
@@ -63,6 +66,7 @@ app.add_middleware(
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 # Full mesh means each extra participant adds a connection to everyone else.
 # Keep this modest -- fine for small group calls, not meant for large meetings.
@@ -70,6 +74,9 @@ MAX_PEERS_PER_ROOM = 6
 
 
 class Room:
+    """In-memory record of who's currently connected to a room's signaling
+    (separate from room_access, which is the persistent DB record of who's
+    *allowed* to connect)."""
     def __init__(self):
         # peer_id -> {"ws": WebSocket, "email": str}
         self.peers: Dict[str, dict] = {}
@@ -80,7 +87,7 @@ rooms: Dict[str, Room] = {}
 
 @app.get("/")
 def health_check():
-    configured = bool(SUPABASE_URL and SUPABASE_ANON_KEY)
+    configured = bool(SUPABASE_URL and SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY)
     return {"status": "ok", "service": "livecam-signaling", "supabase_configured": configured}
 
 
@@ -107,8 +114,74 @@ async def verify_supabase_token(token: str) -> Optional[dict]:
     return None
 
 
+def _service_headers(extra: Optional[dict] = None) -> dict:
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json",
+    }
+    if extra:
+        headers.update(extra)
+    return headers
+
+
+async def get_room_access(room_code: str) -> Optional[dict]:
+    """Fetch the room_access row for this room code, or None if it doesn't exist yet."""
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/room_access",
+            params={"room_code": f"eq.{room_code}", "select": "*"},
+            headers=_service_headers(),
+        )
+    resp.raise_for_status()
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+async def create_room_access(room_code: str, owner_email: str, allowed_emails: List[str]) -> dict:
+    """Create the room_access row for a brand-new room. The owner is always
+    included in allowed_emails automatically."""
+    payload = {
+        "room_code": room_code,
+        "owner_email": owner_email,
+        "allowed_emails": sorted(set(allowed_emails) | {owner_email}),
+    }
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.post(
+            f"{SUPABASE_URL}/rest/v1/room_access",
+            json=payload,
+            headers=_service_headers({"Prefer": "return=representation"}),
+        )
+    resp.raise_for_status()
+    return resp.json()[0]
+
+
+async def update_allowed_emails(room_code: str, allowed_emails: List[str]) -> None:
+    """Overwrite the allow-list for a room (caller is responsible for merging
+    with the existing list first, so this never silently removes access)."""
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.patch(
+            f"{SUPABASE_URL}/rest/v1/room_access",
+            params={"room_code": f"eq.{room_code}"},
+            json={"allowed_emails": sorted(set(allowed_emails))},
+            headers=_service_headers({"Prefer": "return=minimal"}),
+        )
+    resp.raise_for_status()
+
+
+def parse_invited_list(raw: str) -> List[str]:
+    if not raw:
+        return []
+    return [e.strip().lower() for e in raw.split(",") if e.strip()]
+
+
 @app.websocket("/ws/{room_code}")
-async def signaling_endpoint(websocket: WebSocket, room_code: str, token: Optional[str] = ""):
+async def signaling_endpoint(
+    websocket: WebSocket,
+    room_code: str,
+    token: Optional[str] = "",
+    invited: Optional[str] = "",
+):
     await websocket.accept()
 
     user = await verify_supabase_token(token or "")
@@ -116,7 +189,32 @@ async def signaling_endpoint(websocket: WebSocket, room_code: str, token: Option
         await websocket.send_text(json.dumps({"type": "auth-failed"}))
         await websocket.close()
         return
-    email = user.get("email", "unknown")
+    email = (user.get("email") or "").lower()
+    invited_list = parse_invited_list(invited or "")
+
+    try:
+        access = await get_room_access(room_code)
+        if access is None:
+            # First person to ever use this room code becomes its owner.
+            access = await create_room_access(room_code, owner_email=email, allowed_emails=invited_list)
+            logger.info(f"{email} created room '{room_code}' (owner)")
+        else:
+            is_owner = access["owner_email"] == email
+            if is_owner and invited_list:
+                merged = set(access["allowed_emails"] or []) | set(invited_list) | {email}
+                await update_allowed_emails(room_code, list(merged))
+                access["allowed_emails"] = list(merged)
+
+            allowed = set(access["allowed_emails"] or []) | {access["owner_email"]}
+            if email not in allowed:
+                await websocket.send_text(json.dumps({"type": "not-invited"}))
+                await websocket.close()
+                return
+    except httpx.HTTPError as e:
+        logger.error(f"Supabase room_access check failed: {e}")
+        await websocket.send_text(json.dumps({"type": "auth-failed"}))
+        await websocket.close()
+        return
 
     room = rooms.setdefault(room_code, Room())
 

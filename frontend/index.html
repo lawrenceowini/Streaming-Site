@@ -791,7 +791,9 @@
 
       <div class="controls">
         <button class="btn-secondary" id="toggle-mic">🎙️ Mute</button>
-        <button class="btn-secondary" id="toggle-cam">🎥 Hide cam</button>
+        <button class="btn-secondary" id="toggle-cam">
+          🎥 Turn off camera
+        </button>
         <button class="btn-secondary" id="toggle-screen">
           🖥️ Share screen
         </button>
@@ -1264,9 +1266,9 @@
       let screenStream = null,
         isScreenSharing = false;
       let isAudioOnlyMode = false;
-      let micOn = true,
-        camOn = true;
+      let micOn = true;
       const peerConnections = new Map(); // peerId -> RTCPeerConnection
+      const videoSenders = new Map(); // peerId -> RTCRtpSender for that peer's video slot (track may be null)
       const peerEmails = new Map(); // peerId -> email (for display in tiles/chat)
       const pendingCandidates = new Map(); // peerId -> [candidates received before remote description was set]
 
@@ -1298,6 +1300,12 @@
         else setCallStatus("Waiting for others to join…", "connecting");
       }
 
+      function currentOutgoingVideoTrack() {
+        return isScreenSharing && screenStream
+          ? screenStream.getVideoTracks()[0]
+          : cameraVideoTrack;
+      }
+
       function createPeerConnection(peerId, isInitiator) {
         const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
         peerConnections.set(peerId, pc);
@@ -1305,20 +1313,31 @@
         if (localStream) {
           const audioTrack = localStream.getAudioTracks()[0];
           if (audioTrack) pc.addTrack(audioTrack, localStream);
-          const videoTrack =
-            isScreenSharing && screenStream
-              ? screenStream.getVideoTracks()[0]
-              : cameraVideoTrack;
-          if (videoTrack) pc.addTrack(videoTrack, localStream);
         }
+
+        // Always reserve a video slot, whether or not we have a camera/screen track
+        // right now. This is what lets camera-on, camera-off, and screen sharing
+        // all happen later with sender.replaceTrack() instead of a fresh offer/answer
+        // -- switching modes never requires reconnecting.
+        const videoTransceiver = pc.addTransceiver("video", {
+          direction: "sendrecv",
+          streams: localStream ? [localStream] : [],
+        });
+        const initialVideoTrack = currentOutgoingVideoTrack();
+        if (initialVideoTrack)
+          videoTransceiver.sender
+            .replaceTrack(initialVideoTrack)
+            .catch(() => {});
+        videoSenders.set(peerId, videoTransceiver.sender);
 
         pc.ontrack = (event) => {
           const videoEl = ensureRemoteTile(peerId);
           videoEl.srcObject = event.streams[0];
-          updateTileVideoPresence(
-            peerId,
-            event.streams[0].getVideoTracks().length > 0,
-          );
+          if (event.track.kind === "video") {
+            updateTileVideoPresence(peerId, !event.track.muted);
+            event.track.onunmute = () => updateTileVideoPresence(peerId, true);
+            event.track.onmute = () => updateTileVideoPresence(peerId, false);
+          }
         };
         pc.onicecandidate = (e) => {
           if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
@@ -1379,6 +1398,7 @@
           peerConnections.delete(peerId);
         }
         dataChannels.delete(peerId);
+        videoSenders.delete(peerId);
         pendingCandidates.delete(peerId);
         removeRemoteTile(peerId);
         checkChatReady();
@@ -1414,21 +1434,9 @@
         }
         cameraVideoTrack = localStream.getVideoTracks()[0] || null;
         $("local-video").srcObject = localStream;
-
-        if (isAudioOnlyMode) {
-          $("local-tile").classList.add("no-video");
-          const email = currentSession ? currentSession.user.email : "";
-          $("local-avatar-circle").textContent = email
-            ? email.slice(0, 1).toUpperCase()
-            : "?";
-          // Nothing to toggle or replace without a camera track at all.
-          $("toggle-cam").style.display = "none";
-          $("toggle-screen").style.display = "none";
-        } else {
-          $("local-tile").classList.remove("no-video");
-          $("toggle-cam").style.display = "";
-          $("toggle-screen").style.display = "";
-        }
+        updateLocalAvatarInitial();
+        $("local-tile").classList.toggle("no-video", !cameraVideoTrack);
+        updateCameraButtonLabel();
         updateWaitingTile();
 
         setCallStatus("Connecting to signaling server…", "connecting");
@@ -1502,21 +1510,68 @@
         $("toggle-mic").classList.toggle("active", !micOn);
       };
 
-      $("toggle-cam").onclick = () => {
+      /* ---------------- Camera on/off, mid-call, no reconnect ----------------
+   Every peer connection already has a reserved (but possibly empty) video
+   slot, created in createPeerConnection(). Turning the camera on or off
+   just swaps what's playing through that slot via replaceTrack() -- the
+   call itself never drops or renegotiates. */
+      function updateCameraButtonLabel() {
+        $("toggle-cam").textContent = cameraVideoTrack
+          ? "🎥 Turn off camera"
+          : "🎥 Turn on camera";
+        $("toggle-cam").classList.toggle("active", !cameraVideoTrack);
+      }
+      function updateLocalAvatarInitial() {
+        const email = currentSession ? currentSession.user.email : "";
+        $("local-avatar-circle").textContent = email
+          ? email.slice(0, 1).toUpperCase()
+          : "?";
+      }
+
+      $("toggle-cam").onclick = async () => {
         if (!localStream) return;
-        camOn = !camOn;
-        localStream.getVideoTracks().forEach((t) => (t.enabled = camOn));
-        $("toggle-cam").textContent = camOn ? "🎥 Hide cam" : "🎥 Show cam";
-        $("toggle-cam").classList.toggle("active", !camOn);
+
+        if (cameraVideoTrack) {
+          // Turning the camera off: release the physical device and clear the
+          // outgoing video for everyone (unless a screen share is covering it).
+          cameraVideoTrack.stop();
+          localStream.removeTrack(cameraVideoTrack);
+          cameraVideoTrack = null;
+          if (!isScreenSharing) {
+            replaceOutgoingVideoTrack(null);
+            $("local-tile").classList.add("no-video");
+          }
+          updateCameraButtonLabel();
+          return;
+        }
+
+        // Turning the camera on: request it fresh -- this may prompt for
+        // permission again if it's the first time this session.
+        $("toggle-cam").disabled = true;
+        let freshStream;
+        try {
+          freshStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
+        } catch (err) {
+          $("toggle-cam").disabled = false;
+          return; // permission denied, or no camera available -- stay audio-only
+        }
+        $("toggle-cam").disabled = false;
+        cameraVideoTrack = freshStream.getVideoTracks()[0];
+        localStream.addTrack(cameraVideoTrack);
+        $("local-video").srcObject = localStream; // reassign defensively so it renders in every browser
+        if (!isScreenSharing) {
+          replaceOutgoingVideoTrack(cameraVideoTrack);
+          $("local-tile").classList.remove("no-video");
+        }
+        updateCameraButtonLabel();
       };
 
       /* ---------------- Screen sharing ---------------- */
       function replaceOutgoingVideoTrack(newTrack) {
-        for (const pc of peerConnections.values()) {
-          const sender = pc
-            .getSenders()
-            .find((s) => s.track && s.track.kind === "video");
-          if (sender) sender.replaceTrack(newTrack);
+        for (const sender of videoSenders.values()) {
+          sender.replaceTrack(newTrack).catch(() => {});
         }
       }
 
@@ -1535,6 +1590,7 @@
           const screenTrack = screenStream.getVideoTracks()[0];
           replaceOutgoingVideoTrack(screenTrack);
           $("local-video").srcObject = screenStream;
+          $("local-tile").classList.remove("no-video");
           $("toggle-screen").textContent = "🛑 Stop sharing";
           $("toggle-screen").classList.add("active");
           // If the user stops sharing via the browser's own "Stop sharing" UI:
@@ -1550,8 +1606,9 @@
           screenStream = null;
         }
         isScreenSharing = false;
-        replaceOutgoingVideoTrack(cameraVideoTrack);
+        replaceOutgoingVideoTrack(cameraVideoTrack); // null if the camera happens to be off too -- that's fine
         $("local-video").srcObject = localStream;
+        $("local-tile").classList.toggle("no-video", !cameraVideoTrack);
         $("toggle-screen").textContent = "🖥️ Share screen";
         $("toggle-screen").classList.remove("active");
       }
@@ -1560,6 +1617,7 @@
         for (const pc of peerConnections.values()) pc.close();
         peerConnections.clear();
         dataChannels.clear();
+        videoSenders.clear();
         pendingCandidates.clear();
         peerEmails.clear();
         for (const peerId of Array.from(remoteTiles.keys()))
@@ -1584,8 +1642,6 @@
 
         $("local-video").srcObject = null;
         $("local-tile").classList.remove("no-video");
-        $("toggle-cam").style.display = "";
-        $("toggle-screen").style.display = "";
         $("audio-only-checkbox").checked = false;
         $("chat-log").innerHTML = "";
         $("chat-input").disabled = true;
@@ -1596,10 +1652,9 @@
         $("unread-badge").classList.remove("show");
 
         micOn = true;
-        camOn = true;
         $("toggle-mic").textContent = "🎙️ Mute";
         $("toggle-mic").classList.remove("active");
-        $("toggle-cam").textContent = "🎥 Hide cam";
+        $("toggle-cam").textContent = "🎥 Turn off camera";
         $("toggle-cam").classList.remove("active");
         $("toggle-screen").textContent = "🖥️ Share screen";
         $("toggle-screen").classList.remove("active");

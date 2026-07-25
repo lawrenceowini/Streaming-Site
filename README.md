@@ -21,8 +21,8 @@ livecam/
 1. Open the site. Log in (or sign up, if you're a new user) with an email and password.
 2. The first time, enter your signaling server URL — it's saved to your account automatically after that, so you won't need to type it again on future visits or other devices you log into. (Opening someone else's invite link still overrides it for that session, since it points at whichever server *they're* using.)
 3. Enter the **same room code** as everyone else — or, faster, one person clicks **Copy invite link** and sends that link to everyone. Opening it pre-fills the room field automatically (everyone still needs their own account, and needs to actually be allowed into the room — see below).
-4. Everyone clicks **Join call** (this is a deliberate click, not automatic — so you always get the browser's camera/mic permission prompt on your own terms). Check **"Join audio only"** first if you don't want to send your camera at all — useful on a bad connection, or if you just don't want to be on camera.
-5. Each new participant automatically connects directly to everyone already in the room — up to 6 people total. Everyone appears in a grid, labeled by their account email, with your own camera as one of the tiles. Anyone who joined audio-only shows as an avatar circle with their initial instead of a video feed.
+4. Everyone clicks **Join call** (this is a deliberate click, not automatic — so you always get the browser's camera/mic permission prompt on your own terms). Check **"Join audio only"** first if you'd rather start without sending your camera — you can turn it on or off anytime during the call, no need to decide upfront.
+5. Each new participant automatically connects directly to everyone already in the room — up to 6 people total. Everyone appears in a grid, labeled by their account email, with your own camera as one of the tiles. Anyone who's currently audio-only shows as an avatar circle with their initial instead of a video feed.
 6. Click **💬 Chat** to open a text chat panel. Messages are sent to everyone in the call over WebRTC **DataChannels** — the same direct, DTLS-encrypted connections as the video — so they never pass through the signaling server.
 7. Click **🖥️ Share screen** to swap your outgoing video for your screen (pick a window, tab, or your whole screen). Click it again, or use the browser's own "Stop sharing" control, to switch back to your camera. Your microphone keeps working the whole time.
 8. Everyone can mute their own mic or hide their own camera independently.
@@ -43,11 +43,15 @@ Screen sharing works by swapping the video track your camera was sending for a t
 
 Like Google Meet, you shouldn't have to think about infrastructure every time you join a call — so the signaling server URL is saved to your Supabase account (as user metadata) the first time you enter it, and pre-filled automatically every time you log in afterwards, on any device. Editing the field and clicking elsewhere re-saves it. The only exception: opening someone else's invite link overrides it for that session, since the link points at whichever server *they're* using — your own saved default comes back the next time you visit without a link.
 
-### About audio-only mode
+### About switching between voice and video mid-call
 
-Checking "Join audio only" before clicking Join call skips requesting camera access entirely — only your microphone is used. Your tile (and anyone else's who joined the same way) shows a circular avatar with their initial instead of a black or frozen video square, so it's clear at a glance who's audio-only versus who's on camera.
+You can go from camera-on to audio-only and back at any point during a call — no hanging up or reconnecting required. The **camera button** (labeled "Turn off camera" / "Turn on camera") does this: turning the camera off releases the device entirely (the camera light turns off) and your tile switches to an avatar with your initial; turning it back on requests the camera fresh and switches back to video, for everyone in the call, live.
 
-One current limitation: **screen sharing and the camera toggle aren't available if you joined audio-only** (those buttons are hidden for that call). This is a deliberate scope decision, not an oversight — adding video *after* joining without a camera requires renegotiating the WebRTC connection from scratch (a more involved change than swapping an existing video track, which is all screen sharing does today), so it's left out of this version rather than rushed. If you want to share your screen or turn on your camera, rejoin with "Join audio only" unchecked.
+Checking "Join audio only" before clicking Join call just sets your *starting* state — it's no longer a permanent choice for that call the way it was in the previous version. You can turn your camera on later, or start with video and turn it off later, freely.
+
+Screen sharing also works regardless of whether your camera is currently on — sharing your screen while you're audio-only, or while your camera is on, both work the same way; stopping the share returns you to whichever state (camera on, or audio-only) you were in before.
+
+Under the hood, this works without reconnecting because every participant's connection reserves a "video slot" from the moment they join, whether or not anything is actually being sent through it yet — turning the camera on, off, or switching to a screen share just swaps what's flowing through that already-open slot. That's also why nobody sees a jarring drop or a "reconnecting" message when you toggle: the underlying connection never actually changes, just its contents.
 
 ### About invite links
 
@@ -145,4 +149,4 @@ Then use `ws://localhost:8000` as the signaling server URL, and open `frontend/i
 
 ## What's next (from the original roadmap)
 
-This covers **Phase 1 (one-way viewer)**, **Phase 2 (two-way calls)**, **Phase 3 (chat + invite links)**, **Phase 4 (audio-only calls)**, **group calls**, **screen sharing**, **real accounts** (Supabase auth), **invite-only rooms** (per-room allow-lists), and a **saved signaling server URL** per account. Natural next steps from your original plan: turning on video mid-call after joining audio-only (needs WebRTC renegotiation), recording, an in-call UI to add/remove invited people without hanging up, a real SFU media server for larger meetings, presence/notifications, and eventually a full encrypted messenger. Happy to help scope any of those next.
+This covers **Phase 1 (one-way viewer)**, **Phase 2 (two-way calls)**, **Phase 3 (chat + invite links)**, **Phase 4 (voice/video, switchable live mid-call)**, **group calls**, **screen sharing**, **real accounts** (Supabase auth), **invite-only rooms** (per-room allow-lists), and a **saved signaling server URL** per account. Natural next steps from your original plan: recording, an in-call UI to add/remove invited people without hanging up, a real SFU media server for larger meetings, presence/notifications, and eventually a full encrypted messenger. Happy to help scope any of those next.

@@ -15,3 +15,19 @@ create table if not exists room_access (
 
 alter table room_access enable row level security;
 -- No policies added on purpose -- see comment above.
+
+-- ---------------------------------------------------------------------------
+-- Added for incoming-call push notifications. Stores one row per browser
+-- push subscription (a person can have several -- one per device/browser).
+-- Same access model as room_access: RLS on, no policies, so only the
+-- signaling server (via the service_role key) can read or write it.
+-- ---------------------------------------------------------------------------
+create table if not exists push_subscriptions (
+  endpoint text primary key,
+  email text not null,
+  subscription jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+alter table push_subscriptions enable row level security;
+-- No policies added on purpose -- see comment above.

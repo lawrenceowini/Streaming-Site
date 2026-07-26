@@ -1,18 +1,20 @@
-# LiveCam — Group calls, screen sharing, real accounts, and invite-only rooms
+# LiveCam — Group calls, screen sharing, real accounts, invite-only rooms, and incoming-call notifications
 
-A private group video call (up to 6 people) with encrypted text chat, screen sharing, and click-to-fullscreen, direct over WebRTC — gated behind real Supabase accounts, with each room restricted to specifically invited emails.
+A private group video call (up to 6 people) with encrypted text chat, file sharing, screen sharing, and click-to-fullscreen, direct over WebRTC — gated behind real Supabase accounts, with each room restricted to specifically invited emails, and real push notifications when someone starts a call, even if your browser is closed.
 
-> Earlier versions (one-way viewer, two-way call, password-only, mesh-with-password, open-access-accounts) are preserved as `.bak` files in `backend/` and `frontend/` for reference.
+> Earlier versions are preserved as `.bak` files in `backend/` and `frontend/` for reference.
 
 ```
 livecam/
-  backend/          FastAPI + WebSocket signaling server
+  backend/
     main.py
     requirements.txt
     render.yaml
-    supabase_setup.sql   run once in Supabase's SQL Editor
-  frontend/          Single-page app (broadcaster + viewer in one file)
+    supabase_setup.sql       run once in Supabase's SQL Editor
+    generate_vapid_keys.py   run once locally to create your push notification keys
+  frontend/
     index.html
+    sw.js                    service worker: receives pushes, handles notification clicks
     vercel.json
 ```
 
@@ -23,10 +25,11 @@ livecam/
 3. Enter the **same room code** as everyone else — or, faster, one person clicks **Copy invite link** and sends that link to everyone. Opening it pre-fills the room field automatically (everyone still needs their own account, and needs to actually be allowed into the room — see below).
 4. Everyone clicks **Join call** (this is a deliberate click, not automatic — so you always get the browser's camera/mic permission prompt on your own terms). Check **"Join audio only"** first if you'd rather start without sending your camera — you can turn it on or off anytime during the call, no need to decide upfront.
 5. Each new participant automatically connects directly to everyone already in the room — up to 6 people total. Everyone appears in a grid, labeled by their account email, with your own camera as one of the tiles. Anyone who's currently audio-only shows as an avatar circle with their initial instead of a video feed.
-6. Click **💬 Chat** to open a text chat panel. Messages are sent to everyone in the call over WebRTC **DataChannels** — the same direct, DTLS-encrypted connections as the video — so they never pass through the signaling server.
+6. Click **💬 Chat** to open a text chat panel. Messages are sent to everyone in the call over WebRTC **DataChannels** — the same direct, DTLS-encrypted connections as the video — so they never pass through the signaling server. Click **📎** next to the chat box to send a file the same way — images show a thumbnail preview, everything else shows a name and download link, with a live "Sending…/Receiving… X%" progress readout while it's in flight.
 7. Click **🖥️ Share screen** to swap your outgoing video for your screen (pick a window, tab, or your whole screen). Click it again, or use the browser's own "Stop sharing" control, to switch back to your camera. Your microphone keeps working the whole time.
 8. Everyone can mute their own mic or hide their own camera independently.
 9. Click any tile — yours or anyone else's — to expand it to true fullscreen. This is especially handy when someone's sharing their screen and you want to read it clearly; click anywhere (or press Escape) to shrink it back to the grid.
+10. Click **🔔 Enable call alerts** once (in the account bar) to get a real notification when someone starts a call in a room you're invited to — this works even if your browser is completely closed. See below for details.
 
 ### About group calls (mesh, not a media server)
 
@@ -42,6 +45,44 @@ Screen sharing works by swapping the video track your camera was sending for a t
 ### About the saved signaling server URL
 
 Like Google Meet, you shouldn't have to think about infrastructure every time you join a call — so the signaling server URL is saved to your Supabase account (as user metadata) the first time you enter it, and pre-filled automatically every time you log in afterwards, on any device. Editing the field and clicking elsewhere re-saves it. The only exception: opening someone else's invite link overrides it for that session, since the link points at whichever server *they're* using — your own saved default comes back the next time you visit without a link.
+
+### About file sharing
+
+Files travel over the same peer-to-peer DataChannel as chat text — never through the signaling server. A few practical details:
+
+- **25MB limit per file.** DataChannels aren't designed for large transfers, and files are sent in small chunks with flow control (to avoid overwhelming the connection), so anything much bigger would be slow and fragile. For genuinely large files, a traditional file-sharing link is still the better tool.
+- **Sent to everyone currently in the call**, the same as a chat message — there's no way to send a file to just one person in a group call yet.
+- **Images get a thumbnail preview** inline in the chat bubble; everything else shows a file icon, name, and size, with a download link that appears once the transfer completes.
+- **The file itself never touches the signaling server** — same DTLS-encrypted guarantee as video and chat.
+- Progress is genuinely live: the sender shows "Sending… X%" and the receiver shows "Receiving… X%" as chunks arrive, not just a spinner.
+- If you leave the call mid-transfer, the transfer simply stops — there's no resume.
+
+### About incoming-call notifications
+
+Click **🔔 Enable call alerts** in the account bar (once per browser/device) and you'll get a real push notification whenever someone starts a call in a room you're invited to — even if your browser is completely closed. This works differently from everything else in this app: instead of your browser polling or staying connected, the browser vendor's own push infrastructure (Chrome's, Firefox's, etc.) delivers it and wakes a small background script to show the notification. Clicking the notification opens (or focuses) the app with that room pre-filled, ready to join.
+
+A few things worth knowing:
+- **Only fires when someone *starts* a call** — i.e. the first person joins an empty room. Reconnecting to an already-in-progress call doesn't re-notify everyone.
+- **Only goes to people on that room's invite list** (or its owner), excluding whoever's starting the call.
+- **Per-device, not per-account.** Enabling it on your laptop doesn't enable it on your phone — each browser/device you want alerts on needs its own click of the button.
+- If your browser blocks notifications (denied permission), the button shows "🔕 Call alerts blocked" — you'd need to re-allow notifications for the site in your browser's own settings to fix that, this app can't override a browser-level block.
+- This is scoped to just "someone's calling" alerts. Missed-call history and new-message notifications (also mentioned in the original roadmap) aren't built yet — those would be natural additions on top of this same push infrastructure.
+
+#### One-time setup: generate your push notification keys
+
+This uses the **Web Push** standard, which requires a VAPID key pair (a way for your backend to prove to browsers' push services that notifications are really coming from you, not someone else).
+
+1. Locally, run:
+   ```bash
+   pip install cryptography
+   python backend/generate_vapid_keys.py
+   ```
+2. It prints two values. In Render, add them as two more environment variables:
+   - `VAPID_PRIVATE_KEY_PEM` → the whole PEM block it printed, including the `BEGIN`/`END` lines (multi-line env vars are fine on Render)
+   - `VAPID_PUBLIC_KEY` → the single line it printed
+3. Also add `VAPID_CONTACT_EMAIL` → any contact email (e.g. your own). This is required by the push spec as a way for browser vendors to reach you about your usage of their push service if needed — it doesn't need to be actively monitored.
+
+No changes to `frontend/index.html` are needed for this — the frontend fetches the public key from your backend automatically (`/vapid-public-key`), the same way it already fetches nothing else hardcoded like this. If you skip this setup, the rest of the app works exactly as before; the notification button just won't do anything (the backend silently no-ops instead of erroring).
 
 ### About switching between voice and video mid-call
 
@@ -91,9 +132,9 @@ You already created a Supabase project. From **Project Settings → API**, you'l
 
    ⚠️ The service_role key bypasses all of Supabase's security rules. It must **only** ever live in Render's environment variables — never in `frontend/index.html`, never committed to the repo, never sent to a browser. Render's environment variables aren't visible in your public GitHub repo, which is why this split exists.
 
-3. In Supabase, go to **SQL Editor → New query**, paste in the contents of `backend/supabase_setup.sql`, and run it once. This creates the `room_access` table the backend needs. You won't need to touch it again — the backend manages rows in it automatically.
+3. In Supabase, go to **SQL Editor → New query**, paste in the contents of `backend/supabase_setup.sql`, and run it once. This creates the `room_access` and `push_subscriptions` tables the backend needs. You won't need to touch them again — the backend manages rows in them automatically.
 
-(`render.yaml` already declares all three environment variables as required — Render will prompt you to fill them in if you deploy fresh, or you can add them anytime under the service's Environment tab and it'll redeploy.)
+(`render.yaml` already declares all six environment variables as required — Render will prompt you to fill them in if you deploy fresh, or you can add them anytime under the service's Environment tab and it'll redeploy.)
 
 ## 1. Deploy the backend (Render)
 
@@ -102,7 +143,7 @@ You already created a Supabase project. From **Project Settings → API**, you'l
 3. Render should auto-detect `render.yaml`. If not, set manually:
    - **Build command:** `pip install -r requirements.txt`
    - **Start command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Add the three required environment variables under the service's **Environment** tab: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` (see "One-time setup" above).
+4. Add the six required environment variables under the service's **Environment** tab: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `VAPID_PRIVATE_KEY_PEM`, `VAPID_PUBLIC_KEY`, `VAPID_CONTACT_EMAIL` (see "One-time setup" sections above).
 5. Deploy. You'll get a URL like `https://livecam-signaling.onrender.com`.
    - Your WebSocket URL is the same thing with `wss://` instead of `https://`.
 
@@ -133,20 +174,26 @@ Within a few seconds everyone should see and hear each other in the grid (labele
 - **Video, audio, and chat are all encrypted in transit** — WebRTC requires DTLS/SRTP for media and DataChannels by design, so this is on by default, not something extra that was bolted on. The signaling server never sees any of that content, only the connection setup messages needed to establish it, plus each user's email (for labeling tiles/chat) and a token it forwards to Supabase to verify.
 - **HTTPS/WSS only in production** — browsers block camera access and mixed-content WebSocket connections over plain HTTP, so make sure you're using the `https://`/`wss://` URLs Render and Vercel give you.
 - **The Supabase anon key is meant to be public** and is safe to leave in the frontend file — it identifies your project, it doesn't grant special access on its own. Don't confuse it with the `service_role` key (which you never need for this app, and should never expose in frontend code).
+- **Push subscription details are stored server-side too** (in `push_subscriptions`, reached only via the service_role key, same protection as `room_access`). A push subscription isn't a secret exactly, but it is a capability — anyone holding it could send that browser a push through your VAPID identity — so it's treated with the same "service_role key only" access pattern as everything else sensitive in this project.
 
 ## Local testing (optional, before deploying)
 
-Backend (needs all three Supabase environment variables set locally too):
+Backend (needs all six environment variables set locally too):
 ```bash
 cd backend
 pip install -r requirements.txt
 export SUPABASE_URL=https://your-project.supabase.co
 export SUPABASE_ANON_KEY=your-anon-key
 export SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+export VAPID_PRIVATE_KEY_PEM="$(cat path/to/private_key.pem)"
+export VAPID_PUBLIC_KEY=your-vapid-public-key
+export VAPID_CONTACT_EMAIL=you@example.com
 uvicorn main:app --reload --port 8000
 ```
 Then use `ws://localhost:8000` as the signaling server URL, and open `frontend/index.html` directly in two browser tabs (camera access works on `localhost` without HTTPS; make sure you've already edited the `SUPABASE_URL`/`SUPABASE_ANON_KEY` constants in that file too). Note: testing across two different devices locally requires them to reach your computer's local IP and both being HTTPS or on the same trusted network, which is why real testing is easiest once deployed.
 
+One exception: **push notifications won't work by just opening `index.html` as a local file** (`file://`) — service workers require a real `http://` or `https://` origin. If you want to test notifications before deploying, serve the frontend folder with a simple local server (e.g. `npx serve frontend`) instead of opening the file directly.
+
 ## What's next (from the original roadmap)
 
-This covers **Phase 1 (one-way viewer)**, **Phase 2 (two-way calls)**, **Phase 3 (chat + invite links)**, **Phase 4 (voice/video, switchable live mid-call)**, **group calls**, **screen sharing**, **real accounts** (Supabase auth), **invite-only rooms** (per-room allow-lists), and a **saved signaling server URL** per account. Natural next steps from your original plan: recording, an in-call UI to add/remove invited people without hanging up, a real SFU media server for larger meetings, presence/notifications, and eventually a full encrypted messenger. Happy to help scope any of those next.
+This covers **Phase 1 (one-way viewer)**, **Phase 2 (two-way calls)**, **Phase 3 (chat + invite links)**, **Phase 4 (voice/video, switchable live mid-call)**, **group calls**, **screen sharing**, **real accounts** (Supabase auth), **invite-only rooms** (per-room allow-lists), a **saved signaling server URL** per account, **file sharing** in chat, and **incoming-call push notifications**. Natural next steps from your original plan: missed-call history and new-message notifications (built on the same push infrastructure), recording, an in-call UI to add/remove invited people without hanging up, a real SFU media server for larger meetings, emoji reactions and voice messages, and eventually a full encrypted messenger. Happy to help scope any of those next.

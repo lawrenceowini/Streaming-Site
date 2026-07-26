@@ -727,8 +727,8 @@
     </p>
 
     <div class="invite-banner" id="invite-banner">
-      <strong>Invite link detected</strong> — the server and room fields below
-      are pre-filled. Review them, then join the call when ready.
+      <strong>Room detected</strong> — the fields below are pre-filled from your
+      link or notification. Review them, then join the call when ready.
     </div>
 
     <!-- Auth panel: shown when signed out -->
@@ -765,7 +765,12 @@
     <!-- Account bar: shown when signed in -->
     <div class="account-bar" id="account-bar" style="display: none">
       <span>Signed in as <strong id="account-email"></strong></span>
-      <button class="ghost-btn" id="logout-btn">Log out</button>
+      <div style="display: flex; gap: 8px">
+        <button class="ghost-btn" id="notif-toggle">
+          🔔 Enable call alerts
+        </button>
+        <button class="ghost-btn" id="logout-btn">Log out</button>
+      </div>
     </div>
 
     <div class="setup" id="setup-panel" style="display: none">
@@ -961,6 +966,8 @@
             session.user.user_metadata && session.user.user_metadata.server_url;
           if (savedServer) serverUrlInput.value = savedServer;
         }
+
+        refreshNotifButtonState();
       }
 
       function toggleAuthMode() {
@@ -1034,6 +1041,123 @@
         const { data } = await sb.auth.getSession();
         return data.session ? data.session.access_token : null;
       }
+
+      /* ---------------- Incoming-call push notifications ----------------
+   These work even if the browser/tab is fully closed, since the browser
+   vendor's own push service wakes the service worker to show the
+   notification -- this page doesn't need to be open at all. */
+      let swRegistrationPromise = null;
+      if ("serviceWorker" in navigator) {
+        swRegistrationPromise = navigator.serviceWorker
+          .register("/sw.js")
+          .catch(() => null);
+      }
+
+      function urlBase64ToUint8Array(base64String) {
+        const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+        const base64 = (base64String + padding)
+          .replace(/-/g, "+")
+          .replace(/_/g, "/");
+        const rawData = atob(base64);
+        const output = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; i++)
+          output[i] = rawData.charCodeAt(i);
+        return output;
+      }
+
+      function restBaseUrl() {
+        const wsUrl = normalizeWsUrl(serverUrlInput.value);
+        return wsUrl ? toDisplayUrl(wsUrl) : null;
+      }
+
+      async function refreshNotifButtonState() {
+        const btn = $("notif-toggle");
+        const swRegistration = swRegistrationPromise
+          ? await swRegistrationPromise
+          : null;
+        if (!swRegistration || Notification.permission === "denied") {
+          btn.textContent = "🔕 Call alerts blocked";
+          btn.disabled = true;
+          return;
+        }
+        btn.disabled = false;
+        const existing = await swRegistration.pushManager.getSubscription();
+        btn.textContent = existing
+          ? "🔕 Disable call alerts"
+          : "🔔 Enable call alerts";
+      }
+
+      $("notif-toggle").onclick = async () => {
+        const swRegistration = swRegistrationPromise
+          ? await swRegistrationPromise
+          : null;
+        if (!swRegistration) {
+          alert("Push notifications aren't supported in this browser.");
+          return;
+        }
+        const base = restBaseUrl();
+        if (!base) {
+          alert("Enter a signaling server URL first.");
+          return;
+        }
+        const token = await getAccessToken();
+        if (!token) {
+          alert("Please log in again first.");
+          return;
+        }
+
+        const existing = await swRegistration.pushManager.getSubscription();
+        if (existing) {
+          try {
+            await fetch(`${base}/push/unsubscribe`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token, endpoint: existing.endpoint }),
+            });
+          } catch (e) {}
+          await existing.unsubscribe();
+          await refreshNotifButtonState();
+          return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          await refreshNotifButtonState();
+          return;
+        }
+
+        let vapidPublicKey;
+        try {
+          const res = await fetch(`${base}/vapid-public-key`);
+          const data = await res.json();
+          vapidPublicKey = data.publicKey;
+        } catch (e) {
+          alert("Couldn't reach the signaling server to set up notifications.");
+          return;
+        }
+        if (!vapidPublicKey) {
+          alert("This signaling server has push notifications turned off.");
+          return;
+        }
+
+        let subscription;
+        try {
+          subscription = await swRegistration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          });
+        } catch (e) {
+          alert("Couldn't set up call alerts on this device.");
+          return;
+        }
+
+        await fetch(`${base}/push/subscribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, subscription: subscription.toJSON() }),
+        });
+        await refreshNotifButtonState();
+      };
 
       // Whenever the signaling server field changes (and the person is signed in),
       // save it to their account so they don't have to re-type it next time.

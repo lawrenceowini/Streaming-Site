@@ -65,6 +65,7 @@ A few things worth knowing:
 - **Only fires when someone *starts* a call** — i.e. the first person joins an empty room. Reconnecting to an already-in-progress call doesn't re-notify everyone.
 - **Only goes to people on that room's invite list** (or its owner), excluding whoever's starting the call.
 - **Per-device, not per-account.** Enabling it on your laptop doesn't enable it on your phone — each browser/device you want alerts on needs its own click of the button.
+- **Brave users need one extra one-time step.** Brave disables Google's push messaging service by default for privacy, which breaks Web Push (the standard this feature relies on) until it's turned back on: go to `brave://settings/privacy` → enable **"Use Google services for push messaging"** → reload the page. Chrome, Firefox, Edge, and desktop Safari don't need this — it's specific to Brave's defaults. There's no way for this app to detect "you're on Brave, here's a prompt" automatically (browsers don't expose that to websites), so this is just worth knowing about or mentioning to anyone you invite who uses Brave.
 - If your browser blocks notifications (denied permission), the button shows "🔕 Call alerts blocked" — you'd need to re-allow notifications for the site in your browser's own settings to fix that, this app can't override a browser-level block.
 - This is scoped to just "someone's calling" alerts. Missed-call history and new-message notifications (also mentioned in the original roadmap) aren't built yet — those would be natural additions on top of this same push infrastructure.
 

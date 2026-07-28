@@ -715,6 +715,36 @@
       .chat-panel.open {
         transform: translateY(0);
       }
+      .chat-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 8px 12px 16px;
+        border-bottom: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 12.5px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        color: var(--text);
+        flex-shrink: 0;
+      }
+      .chat-close-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: var(--text-dim);
+        font-size: 18px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .chat-close-btn:hover {
+        background: var(--bg-panel-2);
+        color: var(--text);
+      }
       .chat-log {
         height: 260px;
         overflow-y: auto;
@@ -1064,10 +1094,22 @@
             💬<span class="unread-badge" id="unread-badge">0</span>
           </button>
         </div>
-        <button class="btn-hangup" id="hangup" title="Hang up">📞</button>
+        <button class="btn-hangup" id="hangup" title="Hang up">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="#fff">
+            <path
+              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+            ></path>
+          </svg>
+        </button>
       </div>
 
       <div class="chat-panel" id="chat-panel">
+        <div class="chat-panel-header">
+          <span>Chat</span>
+          <button class="chat-close-btn" id="chat-close" title="Close chat">
+            ✕
+          </button>
+        </div>
         <div class="chat-log" id="chat-log"></div>
         <div class="chat-input-row">
           <button id="chat-attach" disabled title="Send a file">📎</button>
@@ -1825,6 +1867,10 @@
           $("unread-badge").classList.remove("show");
           $("chat-input").focus();
         }
+      };
+      $("chat-close").onclick = () => {
+        chatOpen = false;
+        $("chat-panel").classList.remove("open");
       };
 
       /* ---------------- Click-to-fullscreen ---------------- */

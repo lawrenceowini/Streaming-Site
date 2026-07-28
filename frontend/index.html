@@ -180,9 +180,33 @@
         max-width: 460px;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: var(--radius);
+        border-radius: var(--radius) var(--radius) 0 0;
+        border-bottom: none;
         padding: 20px;
-        margin-bottom: 18px;
+        margin-bottom: 0;
+      }
+      .server-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        background: var(--bg-panel-2);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      .server-display {
+        font-family: var(--mono);
+        font-size: 13px;
+        color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .server-row .ghost-btn {
+        padding: 4px 10px;
+        font-size: 11px;
+        flex-shrink: 0;
       }
       .field {
         margin-bottom: 14px;
@@ -249,9 +273,10 @@
         max-width: 460px;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: var(--radius);
-        padding: 22px;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: 20px 22px 22px;
         text-align: center;
+        margin-bottom: 18px;
       }
       .join-card p {
         margin: 6px 0 16px;
@@ -972,37 +997,30 @@
         <button class="ghost-btn" id="logout-btn">Log out</button>
       </div>
     </div>
-    <p
-      class="hint"
-      id="notif-diagnostic"
-      style="
-        width: 100%;
-        max-width: 460px;
-        text-align: left;
-        margin: -10px 0 16px;
-        display: none;
-      "
-    ></p>
 
     <div class="setup" id="setup-panel" style="display: none">
       <div class="field">
         <label for="server-url">Signaling server</label>
-        <input
-          type="text"
-          id="server-url"
-          placeholder="wss://your-app.onrender.com"
-        />
-        <p class="hint">
-          The WebSocket URL of your deployed backend — everyone in the call
-          needs the same one. Saved to your account automatically, so you won't
-          need to re-enter it next time.
-        </p>
+        <div class="server-row" id="server-row" style="display: none">
+          <span class="server-display" id="server-display"></span>
+          <button type="button" class="ghost-btn" id="server-edit-btn">
+            Change
+          </button>
+        </div>
+        <div class="server-edit" id="server-edit">
+          <input
+            type="text"
+            id="server-url"
+            placeholder="wss://your-app.onrender.com"
+          />
+          <p class="hint">Same for everyone in the call. Saved automatically.</p>
+        </div>
         <p
           class="hint"
           id="server-save-hint"
           style="display: none; color: var(--ok)"
         >
-          ✓ Saved to your account
+          ✓ Saved
         </p>
       </div>
       <div class="field">
@@ -1015,10 +1033,7 @@
           />
           <button class="ghost-btn" id="gen-code">Generate</button>
         </div>
-        <p class="hint">
-          Up to 6 people per room. Whoever connects first with a given code
-          becomes its owner.
-        </p>
+        <p class="hint">Up to 6 people per room. First to connect owns it.</p>
       </div>
       <div class="field">
         <label for="invite-emails">Allow these emails in (optional)</label>
@@ -1029,9 +1044,8 @@
           autocomplete="off"
         />
         <p class="hint">
-          Only matters if you're the room's owner — comma-separated emails to
-          add to the allow-list. Leave blank if you're joining someone else's
-          room; you must already be on their list.
+          Room owners only. Leave blank if you're already on someone else's
+          list.
         </p>
       </div>
     </div>
@@ -1181,6 +1195,20 @@
         $("auth-msg").className = "auth-msg";
       }
 
+      function showServerSummary(val) {
+        $("server-display").textContent = toDisplayUrl(
+          normalizeWsUrl(val) || val,
+        );
+        $("server-row").style.display = "flex";
+        $("server-edit").style.display = "none";
+      }
+      function showServerEdit() {
+        $("server-row").style.display = "none";
+        $("server-edit").style.display = "block";
+        serverUrlInput.focus();
+      }
+      $("server-edit-btn").onclick = showServerEdit;
+
       function renderSignedOut() {
         authPanel.style.display = "block";
         accountBar.style.display = "none";
@@ -1202,6 +1230,8 @@
             session.user.user_metadata && session.user.user_metadata.server_url;
           if (savedServer) serverUrlInput.value = savedServer;
         }
+        if (serverUrlInput.value.trim()) showServerSummary(serverUrlInput.value);
+        else showServerEdit();
 
         refreshNotifButtonState();
       }
@@ -1314,28 +1344,11 @@
         return wsUrl ? toDisplayUrl(wsUrl) : null;
       }
 
-      // Shows the concrete facts on-screen -- no devtools or remote debugging
-      // needed to see why notifications aren't working on a given device.
-      function showNotifDiagnostic(lines) {
-        const el = $("notif-diagnostic");
-        el.innerHTML = lines.map((l) => `• ${l}`).join("<br>");
-        el.style.display = "block";
-      }
-
       async function refreshNotifButtonState() {
         const btn = $("notif-toggle");
         const swRegistration = swRegistrationPromise
           ? await swRegistrationPromise
           : null;
-
-        const facts = [
-          `Service worker API: ${"serviceWorker" in navigator ? "present" : "MISSING"}`,
-          `Service worker registered: ${swRegistration ? "yes" : "no" + (swRegistrationErrorMessage ? ` (${swRegistrationErrorMessage})` : "")}`,
-          `Push API: ${"PushManager" in window ? "present" : "MISSING"}`,
-          `Notification API: ${"Notification" in window ? "present" : "MISSING"}`,
-          `Notification permission: ${"Notification" in window ? Notification.permission : "n/a"}`,
-        ];
-        showNotifDiagnostic(facts);
 
         if (
           !swRegistration ||
@@ -1439,6 +1452,7 @@
           data: { server_url: val },
         });
         if (error) return;
+        showServerSummary(val);
         const hint = $("server-save-hint");
         hint.style.display = "block";
         clearTimeout(serverSaveHintTimer);

@@ -175,6 +175,185 @@
         font-weight: 600;
       }
 
+      /* ---------------- Calls hub: tab bar + panels ---------------- */
+      .calls-hub {
+        width: 100%;
+        max-width: 460px;
+        margin-bottom: 18px;
+      }
+      .hub-tabs {
+        display: flex;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius) var(--radius) 0 0;
+        border-bottom: none;
+        overflow: hidden;
+      }
+      .hub-tab {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: var(--text-dim);
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 12px 6px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        white-space: nowrap;
+      }
+      .hub-tab:hover {
+        color: var(--text);
+      }
+      .hub-tab.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+        background: var(--bg-panel-2);
+      }
+      .hub-panel {
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: 18px 20px 20px;
+      }
+      #hub-panel-call {
+        padding: 0;
+        background: none;
+        border: none;
+        border-radius: 0;
+      }
+      .hub-empty {
+        font-size: 12.5px;
+        color: var(--text-dim);
+        text-align: center;
+        padding: 18px 4px;
+        line-height: 1.5;
+      }
+
+      /* Shared row style for recents / favorites / scheduled items */
+      .hub-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 4px;
+        border-bottom: 1px solid var(--line);
+      }
+      .hub-item:last-child {
+        border-bottom: none;
+      }
+      .hub-item-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--accent-dim);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 13px;
+        flex-shrink: 0;
+      }
+      .hub-item-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .hub-item-title {
+        font-size: 13.5px;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .hub-item-sub {
+        font-size: 11px;
+        color: var(--text-dim);
+        font-family: var(--mono);
+        margin-top: 2px;
+      }
+      .hub-item-actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      .hub-icon-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--text-dim);
+        font-size: 15px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .hub-icon-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .hub-icon-btn.call {
+        background: var(--ok);
+        border-color: var(--ok);
+        color: #0d1a10;
+      }
+      .hub-icon-btn.danger:hover {
+        border-color: var(--error);
+        color: var(--error);
+      }
+
+      .favorite-add-row {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .favorite-add-row input {
+        flex: 1;
+        min-width: 0;
+        background: var(--bg-panel-2);
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 9px 10px;
+        border-radius: 8px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+      }
+      .favorite-add-row input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .favorite-add-row .ghost-btn {
+        flex-shrink: 0;
+      }
+
+      .schedule-form {
+        margin-bottom: 14px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .schedule-form input[type="text"],
+      .schedule-form input[type="datetime-local"] {
+        width: 100%;
+        background: var(--bg-panel-2);
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 9px 10px;
+        border-radius: 8px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        margin-bottom: 8px;
+      }
+      .schedule-form input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .schedule-form .btn-primary {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+
       .setup {
         width: 100%;
         max-width: 460px;
@@ -998,70 +1177,127 @@
       </div>
     </div>
 
-    <div class="setup" id="setup-panel" style="display: none">
-      <div class="field">
-        <label for="server-url">Signaling server</label>
-        <div class="server-row" id="server-row" style="display: none">
-          <span class="server-display" id="server-display"></span>
-          <button type="button" class="ghost-btn" id="server-edit-btn">
-            Change
-          </button>
-        </div>
-        <div class="server-edit" id="server-edit">
-          <input
-            type="text"
-            id="server-url"
-            placeholder="wss://your-app.onrender.com"
-          />
-          <p class="hint">Same for everyone in the call. Saved automatically.</p>
-        </div>
-        <p
-          class="hint"
-          id="server-save-hint"
-          style="display: none; color: var(--ok)"
-        >
-          ✓ Saved
-        </p>
+    <div class="calls-hub" id="calls-hub" style="display: none">
+      <div class="hub-tabs">
+        <button class="hub-tab active" data-tab="call">📞 Call</button>
+        <button class="hub-tab" data-tab="recents">🕐 Recents</button>
+        <button class="hub-tab" data-tab="favorites">⭐ Favorites</button>
+        <button class="hub-tab" data-tab="schedule">📅 Schedule</button>
       </div>
-      <div class="field">
-        <label for="room-code">Room code</label>
-        <div class="row">
-          <input
-            type="text"
-            id="room-code"
-            placeholder="e.g. amber-falcon-71"
-          />
-          <button class="ghost-btn" id="gen-code">Generate</button>
-        </div>
-        <p class="hint">Up to 6 people per room. First to connect owns it.</p>
-      </div>
-      <div class="field">
-        <label for="invite-emails">Allow these emails in (optional)</label>
-        <input
-          type="text"
-          id="invite-emails"
-          placeholder="alex@example.com, sam@example.com"
-          autocomplete="off"
-        />
-        <p class="hint">
-          Room owners only. Leave blank if you're already on someone else's
-          list.
-        </p>
-      </div>
-    </div>
 
-    <div class="join-card" id="join-card" style="display: none">
-      <p>
-        Enter a room code above, then share an invite link with everyone joining
-        — or send them the code and server URL directly.
-      </p>
-      <label class="audio-only-toggle">
-        <input type="checkbox" id="audio-only-checkbox" />
-        <span>🎙️ Join audio only (no camera)</span>
-      </label>
-      <button class="btn btn-primary btn-join" id="join-btn">Join call</button>
-      <div class="invite-actions">
-        <button class="ghost-btn" id="copy-link">🔗 Copy invite link</button>
+      <div class="hub-panel" id="hub-panel-call">
+        <div class="setup" id="setup-panel">
+          <div class="field">
+            <label for="server-url">Signaling server</label>
+            <div class="server-row" id="server-row" style="display: none">
+              <span class="server-display" id="server-display"></span>
+              <button type="button" class="ghost-btn" id="server-edit-btn">
+                Change
+              </button>
+            </div>
+            <div class="server-edit" id="server-edit">
+              <input
+                type="text"
+                id="server-url"
+                placeholder="wss://your-app.onrender.com"
+              />
+              <p class="hint">
+                Same for everyone in the call. Saved automatically.
+              </p>
+            </div>
+            <p
+              class="hint"
+              id="server-save-hint"
+              style="display: none; color: var(--ok)"
+            >
+              ✓ Saved
+            </p>
+          </div>
+          <div class="field">
+            <label for="invite-emails">Call this email (optional)</label>
+            <input
+              type="text"
+              id="invite-emails"
+              placeholder="alex@example.com, sam@example.com"
+              autocomplete="off"
+            />
+            <p class="hint">
+              They'll get a call notification if they have alerts enabled.
+              Leave blank for a link-only call.
+            </p>
+          </div>
+          <div class="field">
+            <label for="room-code">Room code</label>
+            <div class="row">
+              <input
+                type="text"
+                id="room-code"
+                placeholder="e.g. amber-falcon-71"
+              />
+              <button class="ghost-btn" id="gen-code">Generate</button>
+            </div>
+            <p class="hint">Up to 6 people per room. First to connect owns it.</p>
+          </div>
+        </div>
+
+        <div class="join-card" id="join-card">
+          <label class="audio-only-toggle">
+            <input type="checkbox" id="audio-only-checkbox" />
+            <span>🎙️ Join audio only (no camera)</span>
+          </label>
+          <button class="btn btn-primary btn-join" id="join-btn">
+            Start call
+          </button>
+          <div class="invite-actions">
+            <button class="ghost-btn" id="copy-link">🔗 Get call link</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hub-panel" id="hub-panel-recents" style="display: none">
+        <div id="recents-list"></div>
+        <p class="hub-empty" id="recents-empty">
+          No recent calls yet — calls you make or join will show up here.
+        </p>
+      </div>
+
+      <div class="hub-panel" id="hub-panel-favorites" style="display: none">
+        <div class="favorite-add-row">
+          <input type="text" id="fav-label" placeholder="Name" />
+          <input type="text" id="fav-email" placeholder="Their email" />
+          <button class="ghost-btn" id="fav-add-btn">+ Add</button>
+        </div>
+        <div id="favorites-list"></div>
+        <p class="hub-empty" id="favorites-empty">
+          No favorites yet — add someone you call often for one-tap dialing.
+        </p>
+      </div>
+
+      <div class="hub-panel" id="hub-panel-schedule" style="display: none">
+        <div class="schedule-form">
+          <input
+            type="text"
+            id="sched-title"
+            placeholder="What's this call about? (optional)"
+          />
+          <input
+            type="text"
+            id="sched-emails"
+            placeholder="Invite emails, comma-separated"
+          />
+          <input type="datetime-local" id="sched-datetime" />
+          <button class="btn btn-primary" id="sched-add-btn">
+            Schedule call
+          </button>
+          <p class="hint" id="sched-hint">
+            We'll try to send a call notification at that time — reminders can
+            arrive a little late if the server's been idle.
+          </p>
+        </div>
+        <div id="scheduled-list"></div>
+        <p class="hub-empty" id="scheduled-empty">
+          No calls scheduled yet.
+        </p>
       </div>
     </div>
 
@@ -1072,6 +1308,7 @@
         ><span id="call-status">Not connected</span
         ><span class="call-timer" id="call-timer"></span>
       </div>
+
 
       <div class="video-grid" id="video-grid">
         <div class="video-tile" id="local-tile">
@@ -1176,6 +1413,7 @@
       const accountBar = $("account-bar");
       const setupPanel = $("setup-panel");
       const joinCard = $("join-card");
+      const callsHub = $("calls-hub");
       const stageCall = $("stage-call");
       const serverUrlInput = $("server-url");
       const roomCodeInput = $("room-code");
@@ -1212,16 +1450,14 @@
       function renderSignedOut() {
         authPanel.style.display = "block";
         accountBar.style.display = "none";
-        setupPanel.style.display = "none";
-        joinCard.style.display = "none";
+        callsHub.style.display = "none";
       }
       function renderSignedIn(session) {
         currentSession = session;
         authPanel.style.display = "none";
         accountBar.style.display = "flex";
         $("account-email").textContent = session.user.email;
-        setupPanel.style.display = "block";
-        joinCard.style.display = "block";
+        callsHub.style.display = "block";
 
         // An invite link's ?server=... always wins over the saved default, since
         // it reflects whoever sent the link, not this account's own history.
@@ -1234,6 +1470,9 @@
         else showServerEdit();
 
         refreshNotifButtonState();
+        loadRecents();
+        loadFavorites();
+        loadScheduledCalls();
       }
 
       function toggleAuthMode() {
@@ -1532,21 +1771,271 @@
         return { url, room, invited };
       }
 
+      function buildInviteLink(url, room) {
+        return `${window.location.origin}${window.location.pathname}?server=${encodeURIComponent(toDisplayUrl(url))}&room=${encodeURIComponent(room)}`;
+      }
+
+      // Generic "copy to clipboard, flash a checkmark" used by every copy
+      // button across the Call/Favorites/Schedule tabs.
+      async function copyToClipboard(text, btnEl, restingLabel) {
+        try {
+          await navigator.clipboard.writeText(text);
+          btnEl.textContent = "✓ Copied!";
+        } catch (e) {
+          prompt("Copy this invite link:", text);
+        }
+        setTimeout(() => (btnEl.textContent = restingLabel), 2000);
+      }
+
       $("copy-link").onclick = async () => {
         const cfg = requireSetup();
         if (!cfg) return;
-        const link = `${window.location.origin}${window.location.pathname}?server=${encodeURIComponent(toDisplayUrl(cfg.url))}&room=${encodeURIComponent(cfg.room)}`;
-        try {
-          await navigator.clipboard.writeText(link);
-          $("copy-link").textContent = "✓ Copied!";
-        } catch (e) {
-          prompt("Copy this invite link:", link);
-        }
-        setTimeout(
-          () => ($("copy-link").textContent = "🔗 Copy invite link"),
-          2000,
+        await copyToClipboard(
+          buildInviteLink(cfg.url, cfg.room),
+          $("copy-link"),
+          "🔗 Get call link",
         );
       };
+
+      /* ================= Calls hub: tabs, Recents, Favorites, Schedule ================= */
+
+      function switchHubTab(tab) {
+        document
+          .querySelectorAll(".hub-tab")
+          .forEach((btn) =>
+            btn.classList.toggle("active", btn.dataset.tab === tab),
+          );
+        ["call", "recents", "favorites", "schedule"].forEach((t) => {
+          $(`hub-panel-${t}`).style.display = t === tab ? "block" : "none";
+        });
+      }
+      document.querySelectorAll(".hub-tab").forEach((btn) => {
+        btn.onclick = () => switchHubTab(btn.dataset.tab);
+      });
+
+      // Turns an email string into avatar initials, e.g. "sam@x.com" -> "S".
+      function initialsFor(text) {
+        const first = (text || "?").trim().charAt(0).toUpperCase();
+        return first || "?";
+      }
+      function relativeTime(iso) {
+        const diffMs = Date.now() - new Date(iso).getTime();
+        const mins = Math.round(diffMs / 60000);
+        if (mins < 1) return "just now";
+        if (mins < 60) return `${mins}m ago`;
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        const days = Math.round(hrs / 24);
+        return `${days}d ago`;
+      }
+
+      /* ---------------- Recents ---------------- */
+      async function loadRecents() {
+        if (!currentSession) return;
+        const { data, error } = await sb
+          .from("call_history")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (error) {
+          console.warn("Could not load recents:", error);
+          return;
+        }
+        const list = $("recents-list");
+        list.innerHTML = "";
+        $("recents-empty").style.display = data.length ? "none" : "block";
+        for (const row of data) {
+          const title = row.peer_label || row.room_code;
+          const item = document.createElement("div");
+          item.className = "hub-item";
+          item.innerHTML = `
+            <div class="hub-item-avatar">${initialsFor(title)}</div>
+            <div class="hub-item-body">
+              <div class="hub-item-title">${escapeHtml(title)}</div>
+              <div class="hub-item-sub">${relativeTime(row.created_at)} · ${escapeHtml(row.room_code)}</div>
+            </div>
+            <div class="hub-item-actions">
+              <button class="hub-icon-btn call" title="Call again">📞</button>
+              <button class="hub-icon-btn danger" title="Remove">✕</button>
+            </div>`;
+          item
+            .querySelector(".call")
+            .addEventListener("click", () =>
+              quickCall(row.room_code, row.peer_label, row.server_url),
+            );
+          item.querySelector(".danger").addEventListener("click", async () => {
+            await sb.from("call_history").delete().eq("id", row.id);
+            loadRecents();
+          });
+          list.appendChild(item);
+        }
+      }
+
+      /* ---------------- Favorites ---------------- */
+      async function loadFavorites() {
+        if (!currentSession) return;
+        const { data, error } = await sb
+          .from("favorites")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (error) {
+          console.warn("Could not load favorites:", error);
+          return;
+        }
+        const list = $("favorites-list");
+        list.innerHTML = "";
+        $("favorites-empty").style.display = data.length ? "none" : "block";
+        for (const row of data) {
+          const item = document.createElement("div");
+          item.className = "hub-item";
+          item.innerHTML = `
+            <div class="hub-item-avatar">${initialsFor(row.label)}</div>
+            <div class="hub-item-body">
+              <div class="hub-item-title">${escapeHtml(row.label)}</div>
+              <div class="hub-item-sub">${escapeHtml(row.target_email)}</div>
+            </div>
+            <div class="hub-item-actions">
+              <button class="hub-icon-btn call" title="Call">📞</button>
+              <button class="hub-icon-btn danger" title="Remove">✕</button>
+            </div>`;
+          item
+            .querySelector(".call")
+            .addEventListener("click", () =>
+              quickCall(randomRoomCode(), row.target_email),
+            );
+          item.querySelector(".danger").addEventListener("click", async () => {
+            await sb.from("favorites").delete().eq("id", row.id);
+            loadFavorites();
+          });
+          list.appendChild(item);
+        }
+      }
+      $("fav-add-btn").onclick = async () => {
+        const label = $("fav-label").value.trim();
+        const email = $("fav-email").value.trim();
+        if (!label || !email) {
+          alert("Please enter both a name and an email.");
+          return;
+        }
+        const { error } = await sb.from("favorites").insert({
+          user_id: currentSession.user.id,
+          label,
+          target_email: email.toLowerCase(),
+        });
+        if (error) {
+          alert("Could not save that favorite: " + error.message);
+          return;
+        }
+        $("fav-label").value = "";
+        $("fav-email").value = "";
+        loadFavorites();
+      };
+
+      /* ---------------- Schedule ---------------- */
+      async function loadScheduledCalls() {
+        if (!currentSession) return;
+        const { data, error } = await sb
+          .from("scheduled_calls")
+          .select("*")
+          .gte("scheduled_at", new Date(Date.now() - 3600000).toISOString())
+          .order("scheduled_at", { ascending: true });
+        if (error) {
+          console.warn("Could not load scheduled calls:", error);
+          return;
+        }
+        const list = $("scheduled-list");
+        list.innerHTML = "";
+        $("scheduled-empty").style.display = data.length ? "none" : "block";
+        for (const row of data) {
+          const when = new Date(row.scheduled_at);
+          const title = row.title || "Call";
+          const item = document.createElement("div");
+          item.className = "hub-item";
+          item.innerHTML = `
+            <div class="hub-item-avatar">📅</div>
+            <div class="hub-item-body">
+              <div class="hub-item-title">${escapeHtml(title)}</div>
+              <div class="hub-item-sub">${when.toLocaleString()}${row.invited_emails && row.invited_emails.length ? " · " + escapeHtml(row.invited_emails.join(", ")) : ""}</div>
+            </div>
+            <div class="hub-item-actions">
+              <button class="hub-icon-btn" title="Copy link">🔗</button>
+              <button class="hub-icon-btn call" title="Join now">📞</button>
+              <button class="hub-icon-btn danger" title="Cancel">✕</button>
+            </div>`;
+          item.querySelector('[title="Copy link"]').addEventListener(
+            "click",
+            (e) =>
+              copyToClipboard(
+                buildInviteLink(row.server_url, row.room_code),
+                e.currentTarget,
+                "🔗",
+              ),
+          );
+          item
+            .querySelector(".call")
+            .addEventListener("click", () =>
+              quickCall(
+                row.room_code,
+                (row.invited_emails || []).join(","),
+                row.server_url,
+              ),
+            );
+          item.querySelector(".danger").addEventListener("click", async () => {
+            await sb.from("scheduled_calls").delete().eq("id", row.id);
+            loadScheduledCalls();
+          });
+          list.appendChild(item);
+        }
+      }
+      $("sched-add-btn").onclick = async () => {
+        const title = $("sched-title").value.trim();
+        const emailsRaw = $("sched-emails").value.trim();
+        const when = $("sched-datetime").value;
+        const url = normalizeWsUrl(serverUrlInput.value);
+        if (!url) {
+          alert("Please set your signaling server first, above.");
+          switchHubTab("call");
+          return;
+        }
+        if (!when) {
+          alert("Please pick a date and time.");
+          return;
+        }
+        const scheduledAt = new Date(when);
+        if (isNaN(scheduledAt.getTime()) || scheduledAt.getTime() < Date.now()) {
+          alert("Please pick a time in the future.");
+          return;
+        }
+        const invitedEmails = parseInvitedList(emailsRaw);
+        const { error } = await sb.from("scheduled_calls").insert({
+          user_id: currentSession.user.id,
+          owner_email: (currentSession.user.email || "").toLowerCase(),
+          title: title || null,
+          room_code: randomRoomCode(),
+          server_url: url,
+          invited_emails: invitedEmails,
+          scheduled_at: scheduledAt.toISOString(),
+        });
+        if (error) {
+          alert("Could not schedule that call: " + error.message);
+          return;
+        }
+        $("sched-title").value = "";
+        $("sched-emails").value = "";
+        $("sched-datetime").value = "";
+        loadScheduledCalls();
+      };
+      function parseInvitedList(raw) {
+        return raw
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
+      }
+      function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str == null ? "" : String(str);
+        return div.innerHTML;
+      }
 
       function setCallStatus(text, cls) {
         $("call-status").textContent = text;
@@ -2242,12 +2731,9 @@
         updateLiveStatus();
       }
 
-      $("join-btn").onclick = async () => {
-        const cfg = requireSetup();
-        if (!cfg) return;
-        isAudioOnlyMode = $("audio-only-checkbox").checked;
-        setupPanel.style.display = "none";
-        joinCard.style.display = "none";
+      async function startCall(cfg, audioOnly) {
+        isAudioOnlyMode = audioOnly;
+        callsHub.style.display = "none";
         $("invite-banner").style.display = "none";
         stageCall.classList.add("active");
         updateGridMode();
@@ -2298,6 +2784,7 @@
           if (msg.type === "welcome") {
             myPeerId = msg.peer_id;
             updateLiveStatus();
+            logCallHistory(cfg);
             // Connect to everyone already in the room -- we're the newcomer, so we initiate.
             for (const peer of msg.peers) {
               peerEmails.set(peer.peer_id, peer.email);
@@ -2339,7 +2826,49 @@
           if ($("call-status").textContent !== "Live")
             setCallStatus("Disconnected from server", "error");
         };
+      }
+
+      // One row per call *I* start or join -- powers the Recents tab. Best
+      // effort: a logging hiccup should never interrupt the call itself.
+      async function logCallHistory(cfg) {
+        if (!currentSession) return;
+        try {
+          await sb.from("call_history").insert({
+            user_id: currentSession.user.id,
+            room_code: cfg.room,
+            server_url: cfg.url,
+            peer_label: cfg.invited || null,
+          });
+          loadRecents();
+        } catch (e) {
+          console.warn("Could not log call history:", e);
+        }
+      }
+
+      $("join-btn").onclick = async () => {
+        const cfg = requireSetup();
+        if (!cfg) return;
+        await startCall(cfg, $("audio-only-checkbox").checked);
       };
+
+      // Jumps straight into a call from Recents/Favorites/Schedule -- fills
+      // the Call tab's fields (so the state stays consistent if they come
+      // back to it) and dials immediately, WhatsApp-style.
+      function quickCall(roomCode, invitedEmails, serverUrlOverride) {
+        const url = normalizeWsUrl(serverUrlOverride || serverUrlInput.value);
+        if (!url) {
+          alert("Please set your signaling server first, on the Call tab.");
+          switchHubTab("call");
+          return;
+        }
+        roomCodeInput.value = roomCode;
+        $("invite-emails").value = invitedEmails || "";
+        switchHubTab("call");
+        startCall(
+          { url, room: roomCode, invited: invitedEmails || "" },
+          $("audio-only-checkbox").checked,
+        );
+      }
 
       $("toggle-mic").onclick = () => {
         if (!localStream) return;
@@ -2522,8 +3051,8 @@
         updateWaitingTile();
         setCallStatus("Not connected");
         stageCall.classList.remove("active");
-        setupPanel.style.display = "block";
-        joinCard.style.display = "block";
+        callsHub.style.display = "block";
+        loadRecents();
       }
       $("hangup").onclick = endCall;
       $("call-back").onclick = endCall;

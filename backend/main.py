@@ -33,6 +33,18 @@ server directly. Subscriptions are stored in `push_subscriptions` (also in
 supabase_setup.sql) and managed via the /push/subscribe and
 /push/unsubscribe endpoints below.
 
+Scheduled calls: users can plan a call for a future time from the frontend
+(stored directly in Supabase's `scheduled_calls` table, guarded by row-level
+security so each account only sees its own rows). This server runs a
+lightweight background loop (see scheduled_call_reminder_loop) that polls
+that table roughly once a minute and sends the same kind of push
+notification used for incoming calls once a scheduled call's time arrives.
+Caveat: Render's free tier puts the service to sleep after a period of no
+HTTP traffic, and a sleeping service can't run this loop -- a reminder can
+therefore arrive late (whenever the service next wakes up) or, in the worst
+case, not at all if it stays asleep well past the scheduled time and past
+the loop's own catch-up window. An always-on (paid) instance avoids this.
+
 Required environment variables (set these in Render's dashboard, not in
 this file):
   SUPABASE_URL              e.g. https://abcdefgh.supabase.co
@@ -59,6 +71,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional
+from datetime import datetime, timedelta, timezone
 import asyncio
 import httpx
 import json
@@ -297,6 +310,97 @@ async def send_incoming_call_push(to_emails: List[str], room_code: str, caller_e
                     await delete_push_subscription(expired_endpoint)
                 except httpx.HTTPError:
                     pass
+
+
+async def send_scheduled_call_push(to_emails: List[str], room_code: str, title: str) -> None:
+    if not (_vapid_key_file and VAPID_PUBLIC_KEY and VAPID_CONTACT_EMAIL):
+        return  # push isn't configured -- silently skip rather than error
+    payload = {
+        "title": f"Scheduled call: {title}",
+        "body": "It's time -- tap to join.",
+        "room_code": room_code,
+    }
+    for email in to_emails:
+        try:
+            rows = await get_push_subscriptions_for_email(email)
+        except httpx.HTTPError as e:
+            logger.warning(f"Could not fetch push subscriptions for {email}: {e}")
+            continue
+        for row in rows:
+            expired_endpoint = await asyncio.to_thread(_send_one_push, row["subscription"], payload)
+            if expired_endpoint:
+                try:
+                    await delete_push_subscription(expired_endpoint)
+                except httpx.HTTPError:
+                    pass
+
+
+# How far back we're still willing to send a "just missed it" reminder for --
+# beyond this, a scheduled call is treated as stale (the service was probably
+# asleep) and is just marked notified without sending anything.
+SCHEDULED_CALL_CATCHUP_WINDOW = timedelta(minutes=30)
+SCHEDULED_CALL_POLL_INTERVAL_SECONDS = 30
+
+
+async def get_due_scheduled_calls() -> List[dict]:
+    now = datetime.now(timezone.utc)
+    cutoff = now - SCHEDULED_CALL_CATCHUP_WINDOW
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/scheduled_calls",
+            params=[
+                ("notified", "eq.false"),
+                ("scheduled_at", f"lte.{now.isoformat()}"),
+                ("scheduled_at", f"gte.{cutoff.isoformat()}"),
+                ("select", "*"),
+            ],
+            headers=_service_headers(),
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+async def mark_scheduled_call_notified(row_id: str) -> None:
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.patch(
+            f"{SUPABASE_URL}/rest/v1/scheduled_calls",
+            params={"id": f"eq.{row_id}"},
+            json={"notified": True},
+            headers=_service_headers(),
+        )
+    resp.raise_for_status()
+
+
+async def scheduled_call_reminder_loop() -> None:
+    """Polls scheduled_calls for anything due and pushes a reminder to its
+    invited emails. See the module docstring for the Render-sleep caveat --
+    this only runs while the process is actually awake."""
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return  # not configured -- nothing to poll
+    while True:
+        try:
+            due = await get_due_scheduled_calls()
+            for row in due:
+                emails = list(row.get("invited_emails") or [])
+                owner_email = row.get("owner_email")
+                if owner_email and owner_email not in emails:
+                    emails.append(owner_email)
+                if emails:
+                    await send_scheduled_call_push(
+                        emails, row["room_code"], row.get("title") or "Call"
+                    )
+                await mark_scheduled_call_notified(row["id"])
+                logger.info(f"Sent scheduled-call reminder for room '{row['room_code']}'")
+        except httpx.HTTPError as e:
+            logger.warning(f"Scheduled-call reminder poll failed: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error in scheduled-call reminder loop: {e}")
+        await asyncio.sleep(SCHEDULED_CALL_POLL_INTERVAL_SECONDS)
+
+
+@app.on_event("startup")
+async def _start_background_tasks():
+    asyncio.create_task(scheduled_call_reminder_loop())
 
 
 class PushSubscribeBody(BaseModel):

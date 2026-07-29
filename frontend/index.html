@@ -247,15 +247,21 @@
       /* ---------------- Calls hub: tab bar + panels ---------------- */
       .calls-hub {
         width: 100%;
-        max-width: 460px;
+        max-width: 500px;
         margin-bottom: 18px;
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
       }
       .hub-tabs {
         display: flex;
+        flex-direction: column;
+        width: 76px;
+        flex-shrink: 0;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: var(--radius) var(--radius) 0 0;
-        border-bottom: none;
+        border-radius: var(--radius) 0 0 var(--radius);
+        border-right: none;
         overflow: hidden;
       }
       .hub-tab {
@@ -265,9 +271,9 @@
         color: var(--text-dim);
         font-family: var(--mono);
         font-size: 10.5px;
-        padding: 10px 4px 9px;
+        padding: 10px 4px;
         cursor: pointer;
-        border-bottom: 2px solid transparent;
+        border-right: 2px solid transparent;
         white-space: nowrap;
         display: flex;
         flex-direction: column;
@@ -284,13 +290,15 @@
       }
       .hub-tab.active {
         color: var(--accent);
-        border-bottom-color: var(--accent);
+        border-right-color: var(--accent);
         background: var(--bg-panel-2);
       }
       .hub-panel {
+        flex: 1;
+        min-width: 0;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: 0 0 var(--radius) var(--radius);
+        border-radius: 0 var(--radius) var(--radius) 0;
         padding: 18px 20px 20px;
       }
       #hub-panel-call {
@@ -1006,6 +1014,21 @@
       /* Small phones (iPhone SE, older Android): shrink icon buttons and
          gaps so the control bar can never need horizontal scrolling. */
       @media (max-width: 380px) {
+        .hub-tabs {
+          width: 60px;
+        }
+        .hub-tab {
+          padding: 8px 2px;
+          font-size: 9.5px;
+          gap: 3px;
+        }
+        .hub-tab svg {
+          width: 17px;
+          height: 17px;
+        }
+        .hub-panel {
+          padding: 14px 14px 16px;
+        }
         .controls-bar {
           gap: 14px;
           padding-left: 10px;

@@ -21,7 +21,7 @@ self.addEventListener('push', (event) => {
     body: payload.body || 'Tap to join the call.',
     tag: 'livecam-incoming-call', // replaces any earlier "incoming call" notification rather than stacking
     requireInteraction: true, // stays on screen until the person acts on it, not just a few seconds
-    data: { roomCode: payload.room_code || '' },
+    data: { roomCode: payload.room_code || '', from: payload.from || '' },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -30,8 +30,12 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const roomCode = (event.notification.data && event.notification.data.roomCode) || '';
+  const from = (event.notification.data && event.notification.data.from) || '';
+  const qs = new URLSearchParams();
+  if (roomCode) qs.set('room', roomCode);
+  if (from) qs.set('from', from);
   const targetUrl = new URL(
-    roomCode ? `/?room=${encodeURIComponent(roomCode)}` : '/',
+    qs.toString() ? `/?${qs.toString()}` : '/',
     self.location.origin
   ).href;
 

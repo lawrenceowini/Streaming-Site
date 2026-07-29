@@ -108,12 +108,64 @@
         border-radius: var(--radius);
         padding: 14px 16px;
         margin-bottom: 16px;
-        font-size: 12.5px;
-        color: var(--text);
         display: none;
+        align-items: center;
+        gap: 12px;
       }
-      .invite-banner strong {
+      .incoming-call-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--accent-dim);
         color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 19px;
+        flex-shrink: 0;
+        animation: pulse 1.6s infinite;
+      }
+      .incoming-call-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .incoming-call-title {
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .incoming-call-sub {
+        font-size: 11.5px;
+        color: var(--text-dim);
+        margin-top: 2px;
+      }
+      .incoming-call-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .incoming-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: none;
+        font-size: 17px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .incoming-btn.accept {
+        background: var(--ok);
+        color: #0d1a10;
+      }
+      .incoming-btn.decline {
+        background: var(--error);
+        color: #fff;
+        transform: rotate(135deg);
       }
 
       .auth-panel {
@@ -1170,8 +1222,23 @@
     </p>
 
     <div class="invite-banner" id="invite-banner">
-      <strong>Room detected</strong> — the fields below are pre-filled from your
-      link or notification. Review them, then join the call when ready.
+      <div class="incoming-call-icon" id="incoming-call-icon">📞</div>
+      <div class="incoming-call-body">
+        <div class="incoming-call-title" id="incoming-call-title">
+          Incoming call
+        </div>
+        <div class="incoming-call-sub" id="incoming-call-sub">
+          Someone wants to call you
+        </div>
+      </div>
+      <div class="incoming-call-actions">
+        <button class="incoming-btn decline" id="decline-call-btn" title="Decline">
+          ✕
+        </button>
+        <button class="incoming-btn accept" id="accept-call-btn" title="Accept">
+          ✓
+        </button>
+      </div>
     </div>
 
     <!-- Auth panel: shown when signed out -->
@@ -1746,6 +1813,102 @@
         else renderSignedOut();
       })();
 
+      /* ================= Ringtone / ringback (synthesized, no audio files) ================= */
+      let _audioCtx = null;
+      function getAudioCtx() {
+        if (!_audioCtx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          _audioCtx = new AC();
+        }
+        return _audioCtx;
+      }
+      // Loops a short dual-tone burst on a timer -- e.g. "ring 1.2s, silence
+      // 2s, repeat" for an incoming call, or a softer pattern for a caller's
+      // ringback while they wait. Synthesized so nothing needs to be hosted
+      // or bundled.
+      class RingLoop {
+        constructor({ freqs, onMs, offMs, gain = 0.12 }) {
+          this.freqs = freqs;
+          this.onMs = onMs;
+          this.offMs = offMs;
+          this.gain = gain;
+          this.timer = null;
+          this.playing = false;
+        }
+        async start() {
+          if (this.playing) return;
+          this.playing = true;
+          try {
+            const ctx = getAudioCtx();
+            if (ctx.state === "suspended") await ctx.resume();
+          } catch (e) {
+            // Autoplay was blocked (common before any user gesture on the
+            // page) -- the visual UI still works, we just stay silent until
+            // unlockRingOnFirstInteraction() below gets a chance to retry.
+            this.playing = false;
+            return;
+          }
+          const cycle = () => {
+            if (!this.playing) return;
+            this._burst();
+            this.timer = setTimeout(cycle, this.onMs + this.offMs);
+          };
+          cycle();
+        }
+        _burst() {
+          const ctx = getAudioCtx();
+          const now = ctx.currentTime;
+          const dur = this.onMs / 1000;
+          const master = ctx.createGain();
+          master.gain.setValueAtTime(0, now);
+          master.gain.linearRampToValueAtTime(this.gain, now + 0.03);
+          master.gain.setValueAtTime(this.gain, now + Math.max(dur - 0.08, 0.03));
+          master.gain.linearRampToValueAtTime(0, now + dur);
+          master.connect(ctx.destination);
+          this.freqs.forEach((f) => {
+            const osc = ctx.createOscillator();
+            osc.type = "sine";
+            osc.frequency.value = f;
+            osc.connect(master);
+            osc.start(now);
+            osc.stop(now + dur);
+          });
+        }
+        stop() {
+          this.playing = false;
+          if (this.timer) clearTimeout(this.timer);
+          this.timer = null;
+        }
+      }
+      // Incoming call: a classic phone-ring cadence.
+      const incomingRingtone = new RingLoop({
+        freqs: [480, 620],
+        onMs: 1200,
+        offMs: 2000,
+        gain: 0.13,
+      });
+      // Caller's side while waiting for the other person to pick up: a
+      // softer, faster "connecting" ringback beep.
+      const outgoingRingback = new RingLoop({
+        freqs: [440, 480],
+        onMs: 900,
+        offMs: 2800,
+        gain: 0.08,
+      });
+      // If the incoming-call screen loaded without a recent-enough user
+      // gesture for autoplay, the very first tap/click anywhere retries it.
+      function unlockRingOnFirstInteraction() {
+        const tryUnlock = () => {
+          if ($("invite-banner").style.display !== "none" && !incomingRingtone.playing) {
+            incomingRingtone.start();
+          }
+          document.removeEventListener("click", tryUnlock);
+          document.removeEventListener("touchstart", tryUnlock);
+        };
+        document.addEventListener("click", tryUnlock, { once: true });
+        document.addEventListener("touchstart", tryUnlock, { once: true, passive: true });
+      }
+
       function randomRoomCode() {
         const words = [
           "amber",
@@ -1763,22 +1926,65 @@
         return `${pick()}-${pick()}-${Math.floor(10 + Math.random() * 89)}`;
       }
 
-      // --- Invite links: read ?server=...&room=... on load, pre-fill fields ---
+      // --- Invite links / call notifications: read ?server=&room=&from= on
+      // load. A `room` param means someone specifically wants to call this
+      // person right now (whether they arrived via a push notification or a
+      // manually shared link) -- so this shows a real incoming-call screen
+      // with a ringtone, not just a passive "fields pre-filled" note.
       (function applyInviteLinkIfPresent() {
         const params = new URLSearchParams(window.location.search);
         const s = params.get("server");
         const r = params.get("room");
+        const from = params.get("from");
         if (s || r) {
           if (s) {
             serverUrlInput.value = s;
             inviteHadServerParam = true;
           }
           if (r) roomCodeInput.value = r;
-          $("invite-banner").style.display = "block";
+          if (r) showIncomingCallScreen(from);
         } else {
           roomCodeInput.value = randomRoomCode();
         }
       })();
+
+      function showIncomingCallScreen(fromEmail) {
+        $("incoming-call-icon").textContent = fromEmail
+          ? initialsFor(fromEmail)
+          : "📞";
+        $("incoming-call-title").textContent = fromEmail
+          ? `Incoming call from ${fromEmail}`
+          : "Incoming call";
+        $("incoming-call-sub").textContent =
+          "Accept to join, or decline to dismiss.";
+        $("invite-banner").style.display = "flex";
+        incomingRingtone.start();
+        unlockRingOnFirstInteraction();
+      }
+      function dismissIncomingCallScreen() {
+        incomingRingtone.stop();
+        $("invite-banner").style.display = "none";
+        // Clean the room/from out of the URL so a refresh doesn't re-ring.
+        const url = new URL(window.location.href);
+        url.searchParams.delete("room");
+        url.searchParams.delete("from");
+        window.history.replaceState({}, "", url.pathname + url.search);
+      }
+      $("accept-call-btn").onclick = async () => {
+        dismissIncomingCallScreen();
+        if (!currentSession) {
+          alert("Please log in first, then accept the call from Recents.");
+          return;
+        }
+        switchHubTab("call");
+        const cfg = requireSetup();
+        if (!cfg) return;
+        await startCall(cfg, $("audio-only-checkbox").checked);
+      };
+      $("decline-call-btn").onclick = () => {
+        dismissIncomingCallScreen();
+        roomCodeInput.value = randomRoomCode();
+      };
 
       $("gen-code").onclick = () => (roomCodeInput.value = randomRoomCode());
 
@@ -2640,9 +2846,11 @@
         if (anyConnected) {
           setCallStatus("Live", "live");
           startCallTimer();
-        } else if (peerConnections.size > 0)
+          outgoingRingback.stop();
+        } else if (peerConnections.size > 0) {
           setCallStatus("Connecting…", "connecting");
-        else setCallStatus("Waiting for others to join…", "connecting");
+          outgoingRingback.stop();
+        } else setCallStatus("Waiting for others to join…", "connecting");
       }
 
       /* ---------------- Call timer (WhatsApp-style "00:12" next to the status dot) ---------------- */
@@ -2772,6 +2980,7 @@
 
       async function startCall(cfg, audioOnly) {
         isAudioOnlyMode = audioOnly;
+        incomingRingtone.stop(); // in case we got here via Accept
         callsHub.style.display = "none";
         $("invite-banner").style.display = "none";
         stageCall.classList.add("active");
@@ -2815,8 +3024,10 @@
           `${cfg.url}/ws/${encodeURIComponent(cfg.room)}?token=${encodeURIComponent(token)}&invited=${encodeURIComponent(cfg.invited)}`,
         );
 
-        ws.onopen = () =>
+        ws.onopen = () => {
           setCallStatus("Waiting for others to join…", "connecting");
+          outgoingRingback.start(); // ringback, like a real call while it dials out
+        };
 
         ws.onmessage = async (event) => {
           const msg = JSON.parse(event.data);
@@ -2831,18 +3042,21 @@
               await initiateOfferTo(peer.peer_id);
             }
           } else if (msg.type === "room-full") {
+            outgoingRingback.stop();
             setCallStatus(
               "That room already has the maximum number of people",
               "error",
             );
             ws.close();
           } else if (msg.type === "auth-failed") {
+            outgoingRingback.stop();
             setCallStatus(
               "Session invalid or expired — please log in again",
               "error",
             );
             ws.close();
           } else if (msg.type === "not-invited") {
+            outgoingRingback.stop();
             setCallStatus("You haven't been invited to this room", "error");
             ws.close();
           } else if (msg.type === "peer-joined") {
@@ -2860,9 +3074,12 @@
           }
         };
 
-        ws.onerror = () =>
+        ws.onerror = () => {
+          outgoingRingback.stop();
           setCallStatus("Signaling server connection failed", "error");
+        };
         ws.onclose = () => {
+          outgoingRingback.stop();
           if ($("call-status").textContent !== "Live")
             setCallStatus("Disconnected from server", "error");
         };
@@ -3026,6 +3243,8 @@
       }
 
       function endCall() {
+        outgoingRingback.stop();
+        incomingRingtone.stop();
         for (const pc of peerConnections.values()) pc.close();
         peerConnections.clear();
         dataChannels.clear();

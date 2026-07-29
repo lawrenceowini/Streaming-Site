@@ -41,6 +41,15 @@
         font-family: var(--sans);
         -webkit-font-smoothing: antialiased;
       }
+      /* While a call is active the stage is a fixed fullscreen overlay --
+         locking the page underneath stops mobile browsers from letting you
+         drag/scroll past it and lose the controls off-screen. */
+      body.call-active {
+        overflow: hidden;
+        height: 100%;
+        position: fixed;
+        width: 100%;
+      }
       body {
         min-height: 100vh;
         display: flex;
@@ -484,6 +493,8 @@
         flex-direction: column;
         position: fixed;
         inset: 0;
+        height: 100vh;
+        height: 100dvh;
         z-index: 1000;
         background: #000;
         margin: 0;
@@ -897,6 +908,34 @@
         display: flex;
       }
 
+      /* Small phones (iPhone SE, older Android): shrink icon buttons and
+         gaps so the control bar can never need horizontal scrolling. */
+      @media (max-width: 380px) {
+        .controls-bar {
+          gap: 14px;
+          padding-left: 10px;
+          padding-right: 10px;
+        }
+        .controls {
+          gap: 10px;
+        }
+        .btn-secondary {
+          width: 46px;
+          height: 46px;
+          font-size: 18px;
+        }
+        .btn-hangup {
+          width: 52px;
+          height: 52px;
+        }
+        .video-grid.mode-solo #local-tile {
+          width: 78px;
+          height: 108px;
+          right: 10px;
+          bottom: 108px;
+        }
+      }
+
       /* Chat panel: slide-up bottom sheet over the call */
       .chat-panel {
         position: absolute;
@@ -1008,7 +1047,7 @@
         padding: 9px 12px;
         border-radius: 8px;
         font-family: var(--sans);
-        font-size: 13px;
+        font-size: 16px;
       }
       .chat-input-row input:focus {
         outline: none;
@@ -2736,6 +2775,7 @@
         callsHub.style.display = "none";
         $("invite-banner").style.display = "none";
         stageCall.classList.add("active");
+        document.body.classList.add("call-active");
         updateGridMode();
         showBars();
         setCallStatus(
@@ -3051,6 +3091,7 @@
         updateWaitingTile();
         setCallStatus("Not connected");
         stageCall.classList.remove("active");
+        document.body.classList.remove("call-active");
         callsHub.style.display = "block";
         loadRecents();
       }

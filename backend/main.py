@@ -103,15 +103,59 @@ VAPID_PRIVATE_KEY_PEM = os.environ.get("VAPID_PRIVATE_KEY_PEM", "")
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
 VAPID_CONTACT_EMAIL = os.environ.get("VAPID_CONTACT_EMAIL", "")
 
-# pywebpush wants a file path for the private key; the env var holds PEM text
-# directly (multi-line env vars are fine on Render), so write it out once at
-# startup rather than re-writing a temp file on every push.
-_vapid_key_file: Optional[str] = None
-if VAPID_PRIVATE_KEY_PEM:
-    _tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False)
-    _tmp.write(VAPID_PRIVATE_KEY_PEM)
-    _tmp.close()
-    _vapid_key_file = _tmp.name
+
+def _normalize_vapid_key_file(raw_pem: str) -> Optional[str]:
+    """Writes a clean, correctly-formatted PEM temp file for py_vapid to
+    read, instead of trusting the env var's text verbatim.
+
+    Two very easy ways to end up with a "valid-looking" but unusable key:
+      1. Pasting a multi-line PEM into an env var UI can flatten real
+         newlines into literal backslash-n text, or strip them entirely.
+      2. py_vapid's own PEM parsing is naive (it just slices off the first/
+         last line and base64-decodes the rest) and works best with the
+         "traditional"/SEC1 EC key format -- not the PKCS8 format some
+         generators (including our own generate_vapid_keys.py, historically)
+         produce.
+    Both failures throw the exact same opaque "ASN.1 parsing error" deep
+    inside pywebpush with no indication of the real cause. To sidestep both,
+    we re-parse the key ourselves with `cryptography`'s own PEM loader
+    (which tolerates whitespace issues far better than py_vapid's) and
+    re-serialize it into the exact traditional-EC PEM format py_vapid
+    expects, so what we hand it is always clean and correctly shaped."""
+    if not raw_pem:
+        return None
+    try:
+        from cryptography.hazmat.primitives import serialization as _ser
+
+        text = raw_pem.strip()
+        if "\\n" in text and "\n" not in text:
+            text = text.replace("\\n", "\n")  # escaped newlines, not real ones
+        text = text.replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+
+        key_obj = _ser.load_pem_private_key(text.encode(), password=None)
+        clean_pem = key_obj.private_bytes(
+            encoding=_ser.Encoding.PEM,
+            format=_ser.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=_ser.NoEncryption(),
+        ).decode()
+
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False)
+        tmp.write(clean_pem)
+        tmp.close()
+        return tmp.name
+    except Exception as e:
+        logger.error(
+            f"VAPID_PRIVATE_KEY_PEM is set but could not be parsed as an EC "
+            f"private key -- push notifications will silently fail until "
+            f"this is fixed. Re-copy it from generate_vapid_keys.py's "
+            f"output, whole block, BEGIN/END lines included. Underlying "
+            f"error: {e}"
+        )
+        return None
+
+
+# pywebpush wants a file path for the private key.
+_vapid_key_file: Optional[str] = _normalize_vapid_key_file(VAPID_PRIVATE_KEY_PEM)
 
 # Full mesh means each extra participant adds a connection to everyone else.
 # Keep this modest -- fine for small group calls, not meant for large meetings.

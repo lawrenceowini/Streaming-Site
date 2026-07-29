@@ -1765,7 +1765,7 @@
         authPanel.style.display = "none";
         accountBar.style.display = "flex";
         $("account-email").textContent = session.user.email;
-        callsHub.style.display = "block";
+        callsHub.style.display = "flex";
 
         // An invite link's ?server=... always wins over the saved default, since
         // it reflects whoever sent the link, not this account's own history.
@@ -3586,7 +3586,7 @@
         setCallStatus("Not connected");
         stageCall.classList.remove("active");
         document.body.classList.remove("call-active");
-        callsHub.style.display = "block";
+        callsHub.style.display = "flex";
         loadRecents();
       }
       $("hangup").onclick = endCall;

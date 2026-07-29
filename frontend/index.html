@@ -1827,17 +1827,24 @@
       // ringback while they wait. Synthesized so nothing needs to be hosted
       // or bundled.
       class RingLoop {
-        constructor({ freqs, onMs, offMs, gain = 0.12 }) {
+        // pattern: alternating [onMs, offMs, onMs, offMs, ...] durations for
+        // one full cycle before it repeats. E.g. [400, 200, 400, 2000] is a
+        // short ring, tiny gap, short ring, longer pause -- the classic
+        // "brring-brring... pause" cadence people recognize as a phone
+        // ringing (this is the real ITU-T "ringing tone" cadence, not
+        // something we made up).
+        constructor({ freqs, pattern, gain = 0.12 }) {
           this.freqs = freqs;
-          this.onMs = onMs;
-          this.offMs = offMs;
+          this.pattern = pattern;
           this.gain = gain;
           this.timer = null;
           this.playing = false;
+          this.step = 0;
         }
         async start() {
           if (this.playing) return;
           this.playing = true;
+          this.step = 0;
           try {
             const ctx = getAudioCtx();
             if (ctx.state === "suspended") await ctx.resume();
@@ -1850,19 +1857,22 @@
           }
           const cycle = () => {
             if (!this.playing) return;
-            this._burst();
-            this.timer = setTimeout(cycle, this.onMs + this.offMs);
+            const durMs = this.pattern[this.step % this.pattern.length];
+            const isOn = this.step % 2 === 0; // pattern always starts "on"
+            if (isOn) this._burst(durMs);
+            this.step++;
+            this.timer = setTimeout(cycle, durMs);
           };
           cycle();
         }
-        _burst() {
+        _burst(durMs) {
           const ctx = getAudioCtx();
           const now = ctx.currentTime;
-          const dur = this.onMs / 1000;
+          const dur = durMs / 1000;
           const master = ctx.createGain();
           master.gain.setValueAtTime(0, now);
-          master.gain.linearRampToValueAtTime(this.gain, now + 0.03);
-          master.gain.setValueAtTime(this.gain, now + Math.max(dur - 0.08, 0.03));
+          master.gain.linearRampToValueAtTime(this.gain, now + 0.02);
+          master.gain.setValueAtTime(this.gain, now + Math.max(dur - 0.05, 0.02));
           master.gain.linearRampToValueAtTime(0, now + dur);
           master.connect(ctx.destination);
           this.freqs.forEach((f) => {
@@ -1876,23 +1886,24 @@
         }
         stop() {
           this.playing = false;
+          this.step = 0;
           if (this.timer) clearTimeout(this.timer);
           this.timer = null;
         }
       }
-      // Incoming call: a classic phone-ring cadence.
+      // Incoming call: the standard telephone "ringing tone" cadence --
+      // ring, brief gap, ring, longer pause, repeat.
       const incomingRingtone = new RingLoop({
-        freqs: [480, 620],
-        onMs: 1200,
-        offMs: 2000,
-        gain: 0.13,
+        freqs: [400, 450],
+        pattern: [400, 200, 400, 2000],
+        gain: 0.14,
       });
-      // Caller's side while waiting for the other person to pick up: a
-      // softer, faster "connecting" ringback beep.
+      // Caller's side while waiting for the other person to pick up: the
+      // standard telephone "ringback tone" cadence (what you hear on a real
+      // call while it rings on the other end) -- 2s on, 4s off.
       const outgoingRingback = new RingLoop({
         freqs: [440, 480],
-        onMs: 900,
-        offMs: 2800,
+        pattern: [2000, 4000],
         gain: 0.08,
       });
       // If the incoming-call screen loaded without a recent-enough user
@@ -1908,6 +1919,12 @@
         document.addEventListener("click", tryUnlock, { once: true });
         document.addEventListener("touchstart", tryUnlock, { once: true, passive: true });
       }
+
+      // Some mobile browsers restore form field values via the
+      // back/forward cache even when the page wasn't fully reloaded -- reset
+      // this explicitly so a previous test's "audio only" choice can never
+      // silently carry over into a call that looks like it should have video.
+      $("audio-only-checkbox").checked = false;
 
       function randomRoomCode() {
         const words = [
@@ -2910,6 +2927,19 @@
             updateTileVideoPresence(peerId, !event.track.muted);
             event.track.onunmute = () => updateTileVideoPresence(peerId, true);
             event.track.onmute = () => updateTileVideoPresence(peerId, false);
+            // track.onunmute/onmute are the "correct" signal in spec, but in
+            // practice they're unreliable for a transceiver that started out
+            // with no track attached and later got a real one swapped in via
+            // replaceTrack() -- exactly our "reserve a video slot upfront"
+            // design. The video element actually decoding real frames is a
+            // much more dependable sign that video has arrived, so treat
+            // that as authoritative too rather than trusting mute state alone.
+            videoEl.addEventListener("loadedmetadata", () => {
+              if (videoEl.videoWidth > 0) updateTileVideoPresence(peerId, true);
+            });
+            videoEl.addEventListener("playing", () =>
+              updateTileVideoPresence(peerId, true),
+            );
           }
         };
         pc.onicecandidate = (e) => {

@@ -125,6 +125,10 @@
         flex-shrink: 0;
         animation: pulse 1.6s infinite;
       }
+      .incoming-call-icon svg {
+        width: 19px;
+        height: 19px;
+      }
       .incoming-call-body {
         flex: 1;
         min-width: 0;
@@ -152,15 +156,19 @@
         height: 42px;
         border-radius: 50%;
         border: none;
-        font-size: 17px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
       }
+      .incoming-btn svg {
+        width: 18px;
+        height: 18px;
+      }
       .incoming-btn.accept {
         background: var(--ok);
-        color: #0d1a10;
+        color: #fff;
+        transform: rotate(-45deg);
       }
       .incoming-btn.decline {
         background: var(--error);
@@ -256,11 +264,20 @@
         border: none;
         color: var(--text-dim);
         font-family: var(--mono);
-        font-size: 12px;
-        padding: 12px 6px;
+        font-size: 10.5px;
+        padding: 10px 4px 9px;
         cursor: pointer;
         border-bottom: 2px solid transparent;
         white-space: nowrap;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+      }
+      .hub-tab svg {
+        width: 20px;
+        height: 20px;
       }
       .hub-tab:hover {
         color: var(--text);
@@ -315,6 +332,10 @@
         font-size: 13px;
         flex-shrink: 0;
       }
+      .hub-item-avatar svg {
+        width: 17px;
+        height: 17px;
+      }
       .hub-item-body {
         flex: 1;
         min-width: 0;
@@ -350,6 +371,10 @@
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+      }
+      .hub-icon-btn svg {
+        width: 16px;
+        height: 16px;
       }
       .hub-icon-btn:hover {
         border-color: var(--accent);
@@ -496,6 +521,14 @@
         font-size: 12px;
         cursor: pointer;
         white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .ghost-btn svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
       }
       .ghost-btn:hover {
         border-color: var(--accent);
@@ -728,6 +761,11 @@
         cursor: pointer;
         justify-content: center;
       }
+      .audio-only-toggle svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+      }
       .audio-only-toggle input {
         accent-color: var(--accent);
         width: 16px;
@@ -901,8 +939,13 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
+        position: relative;
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
+      }
+      .btn-secondary svg {
+        width: 22px;
+        height: 22px;
       }
       .btn-secondary:hover {
         background: rgba(255, 255, 255, 0.24);
@@ -974,7 +1017,10 @@
         .btn-secondary {
           width: 46px;
           height: 46px;
-          font-size: 18px;
+        }
+        .btn-secondary svg {
+          width: 19px;
+          height: 19px;
         }
         .btn-hangup {
           width: 52px;
@@ -1035,6 +1081,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
+      }
+      .chat-close-btn svg {
+        width: 15px;
+        height: 15px;
       }
       .chat-close-btn:hover {
         background: var(--bg-panel-2);
@@ -1128,6 +1178,13 @@
         border-radius: 8px;
         font-size: 15px;
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #chat-attach svg {
+        width: 15px;
+        height: 15px;
       }
       #chat-attach:hover:not(:disabled) {
         border-color: var(--accent);
@@ -1222,7 +1279,13 @@
     </p>
 
     <div class="invite-banner" id="invite-banner">
-      <div class="incoming-call-icon" id="incoming-call-icon">📞</div>
+      <div class="incoming-call-icon" id="incoming-call-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+          ></path>
+        </svg>
+      </div>
       <div class="incoming-call-body">
         <div class="incoming-call-title" id="incoming-call-title">
           Incoming call
@@ -1233,10 +1296,18 @@
       </div>
       <div class="incoming-call-actions">
         <button class="incoming-btn decline" id="decline-call-btn" title="Decline">
-          ✕
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+            ></path>
+          </svg>
         </button>
         <button class="incoming-btn accept" id="accept-call-btn" title="Accept">
-          ✓
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+            ></path>
+          </svg>
         </button>
       </div>
     </div>
@@ -1277,7 +1348,12 @@
       <span>Signed in as <strong id="account-email"></strong></span>
       <div style="display: flex; gap: 8px">
         <button class="ghost-btn" id="notif-toggle">
-          🔔 Enable call alerts
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6v-5a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"
+            ></path>
+          </svg>
+          <span>Enable call alerts</span>
         </button>
         <button class="ghost-btn" id="logout-btn">Log out</button>
       </div>
@@ -1285,10 +1361,38 @@
 
     <div class="calls-hub" id="calls-hub" style="display: none">
       <div class="hub-tabs">
-        <button class="hub-tab active" data-tab="call">📞 Call</button>
-        <button class="hub-tab" data-tab="recents">🕐 Recents</button>
-        <button class="hub-tab" data-tab="favorites">⭐ Favorites</button>
-        <button class="hub-tab" data-tab="schedule">📅 Schedule</button>
+        <button class="hub-tab active" data-tab="call">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+            ></path>
+          </svg>
+          <span>Call</span>
+        </button>
+        <button class="hub-tab" data-tab="recents">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 10.41V6h-2v7l5.25 3.15 1-1.64z"
+            ></path>
+          </svg>
+          <span>Recents</span>
+        </button>
+        <button class="hub-tab" data-tab="favorites">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"
+            ></path>
+          </svg>
+          <span>Favorites</span>
+        </button>
+        <button class="hub-tab" data-tab="schedule">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V9h14z"
+            ></path>
+          </svg>
+          <span>Schedule</span>
+        </button>
       </div>
 
       <div class="hub-panel" id="hub-panel-call">
@@ -1349,13 +1453,25 @@
         <div class="join-card" id="join-card">
           <label class="audio-only-toggle">
             <input type="checkbox" id="audio-only-checkbox" />
-            <span>🎙️ Join audio only (no camera)</span>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"
+              ></path>
+            </svg>
+            <span>Join audio only (no camera)</span>
           </label>
           <button class="btn btn-primary btn-join" id="join-btn">
             Start call
           </button>
           <div class="invite-actions">
-            <button class="ghost-btn" id="copy-link">🔗 Get call link</button>
+            <button class="ghost-btn" id="copy-link">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"
+                ></path>
+              </svg>
+              <span>Get call link</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1431,24 +1547,41 @@
       <div class="controls-bar" id="controls-bar">
         <div class="controls">
           <button class="btn-secondary" id="toggle-mic" title="Mute">
-            🎙️
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"
+              ></path>
+            </svg>
           </button>
           <button
             class="btn-secondary"
             id="toggle-cam"
             title="Turn off camera"
           >
-            🎥
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11z"
+              ></path>
+            </svg>
           </button>
           <button
             class="btn-secondary"
             id="toggle-screen"
             title="Share screen"
           >
-            🖥️
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M20 3H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h4l-1 2v1h8v-1l-1-2h4a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 13H4V5h16v11z"
+              ></path>
+            </svg>
           </button>
           <button class="btn-secondary" id="toggle-chat" title="Chat">
-            💬<span class="unread-badge" id="unread-badge">0</span>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"
+              ></path>
+            </svg>
+            <span class="unread-badge" id="unread-badge">0</span>
           </button>
         </div>
         <button class="btn-hangup" id="hangup" title="Hang up">
@@ -1464,12 +1597,22 @@
         <div class="chat-panel-header">
           <span>Chat</span>
           <button class="chat-close-btn" id="chat-close" title="Close chat">
-            ✕
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              ></path>
+            </svg>
           </button>
         </div>
         <div class="chat-log" id="chat-log"></div>
         <div class="chat-input-row">
-          <button id="chat-attach" disabled title="Send a file">📎</button>
+          <button id="chat-attach" disabled title="Send a file">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6z"
+              ></path>
+            </svg>
+          </button>
           <input type="file" id="chat-file-input" style="display: none" />
           <input
             type="text"
@@ -1515,6 +1658,42 @@
       ];
 
       const $ = (id) => document.getElementById(id);
+
+      // Shared SVG icons -- used everywhere instead of emoji so the whole UI
+      // renders consistently (emoji glyphs carry their own baked-in colors
+      // that ignore CSS, which is exactly the contrast problem we hit with
+      // the hangup button before). Every icon uses currentColor, so it just
+      // follows whatever color the surrounding button/element already has.
+      const ICONS = {
+        phone:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"></path></svg>',
+        micOn:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"></path></svg>',
+        micOff:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V6c0-1.66-1.34-3-3-3-1.02 0-1.91.51-2.45 1.29l2.9 2.88zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"></path></svg>',
+        camOn:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11z"></path></svg>',
+        camOff:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 6.5l-4 4V7a1 1 0 0 0-1-1H9.83L21 17.17zM3.27 2L2 3.27 4.73 6H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 .74-.33l2.99 2.99L21 19.73 3.27 2z"></path></svg>',
+        screenOn:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 3H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h4l-1 2v1h8v-1l-1-2h4a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 13H4V5h16v11z"></path></svg>',
+        screenOff:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v6.17l2 2V5a2 2 0 0 0-2-2H4.83l2 2H6zM2.1 2.1L.69 3.51 2 4.83V16a2 2 0 0 0 2 2h1l-1 2v1h8v-1l-1-2h2.17l4 4 1.41-1.41L2.1 2.1zM8 15.17V9.83l5.17 5.17H8z"></path></svg>',
+        chat: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"></path></svg>',
+        clock:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 10.41V6h-2v7l5.25 3.15 1-1.64z"></path></svg>',
+        star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"></path></svg>',
+        calendar:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V9h14z"></path></svg>',
+        bell: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6v-5a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"></path></svg>',
+        bellOff:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 3.5v.66a7 7 0 0 1 5.5 6.84v5l1.27 1.27L21.5 16 19 13.5v-2.5a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.02L12.7 5.7a1.49 1.49 0 0 1 .8-.2c.05 0 0-2 0-2zM2.1 2.1L.69 3.51 3.76 6.58A6.98 6.98 0 0 0 3 11v5l-2 2v1h15.79l2.28 2.28 1.41-1.41L2.1 2.1zM9.55 20a2.5 2.5 0 0 0 4.9 0z"></path></svg>',
+        close:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>',
+        link: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg>',
+        check:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"></path></svg>',
+      };
       const authPanel = $("auth-panel");
       const accountBar = $("account-bar");
       const setupPanel = $("setup-panel");
@@ -1699,15 +1878,15 @@
           !swRegistration ||
           ("Notification" in window && Notification.permission === "denied")
         ) {
-          btn.textContent = "🔕 Call alerts blocked";
+          btn.innerHTML = `${ICONS.bellOff}<span>Call alerts blocked</span>`;
           btn.disabled = true;
           return;
         }
         btn.disabled = false;
         const existing = await swRegistration.pushManager.getSubscription();
-        btn.textContent = existing
-          ? "🔕 Disable call alerts"
-          : "🔔 Enable call alerts";
+        btn.innerHTML = existing
+          ? `${ICONS.bellOff}<span>Disable call alerts</span>`
+          : `${ICONS.bell}<span>Enable call alerts</span>`;
       }
 
       $("notif-toggle").onclick = async () => {
@@ -1966,9 +2145,9 @@
       })();
 
       function showIncomingCallScreen(fromEmail) {
-        $("incoming-call-icon").textContent = fromEmail
-          ? initialsFor(fromEmail)
-          : "📞";
+        $("incoming-call-icon").innerHTML = fromEmail
+          ? escapeHtml(initialsFor(fromEmail))
+          : ICONS.phone;
         $("incoming-call-title").textContent = fromEmail
           ? `Incoming call from ${fromEmail}`
           : "Incoming call";
@@ -2039,23 +2218,25 @@
 
       // Generic "copy to clipboard, flash a checkmark" used by every copy
       // button across the Call/Favorites/Schedule tabs.
-      async function copyToClipboard(text, btnEl, restingLabel) {
+      async function copyToClipboard(text, btnEl, restingHTML, flashHTML) {
         try {
           await navigator.clipboard.writeText(text);
-          btnEl.textContent = "✓ Copied!";
+          btnEl.innerHTML = flashHTML;
         } catch (e) {
           prompt("Copy this invite link:", text);
         }
-        setTimeout(() => (btnEl.textContent = restingLabel), 2000);
+        setTimeout(() => (btnEl.innerHTML = restingHTML), 2000);
       }
 
+      const GET_CALL_LINK_HTML = `${ICONS.link}<span>Get call link</span>`;
       $("copy-link").onclick = async () => {
         const cfg = requireSetup();
         if (!cfg) return;
         await copyToClipboard(
           buildInviteLink(cfg.url, cfg.room),
           $("copy-link"),
-          "🔗 Get call link",
+          GET_CALL_LINK_HTML,
+          `${ICONS.check}<span>Copied!</span>`,
         );
       };
 
@@ -2117,8 +2298,8 @@
               <div class="hub-item-sub">${relativeTime(row.created_at)} · ${escapeHtml(row.room_code)}</div>
             </div>
             <div class="hub-item-actions">
-              <button class="hub-icon-btn call" title="Call again">📞</button>
-              <button class="hub-icon-btn danger" title="Remove">✕</button>
+              <button class="hub-icon-btn call" title="Call again">${ICONS.phone}</button>
+              <button class="hub-icon-btn danger" title="Remove">${ICONS.close}</button>
             </div>`;
           item
             .querySelector(".call")
@@ -2157,8 +2338,8 @@
               <div class="hub-item-sub">${escapeHtml(row.target_email)}</div>
             </div>
             <div class="hub-item-actions">
-              <button class="hub-icon-btn call" title="Call">📞</button>
-              <button class="hub-icon-btn danger" title="Remove">✕</button>
+              <button class="hub-icon-btn call" title="Call">${ICONS.phone}</button>
+              <button class="hub-icon-btn danger" title="Remove">${ICONS.close}</button>
             </div>`;
           item
             .querySelector(".call")
@@ -2214,15 +2395,15 @@
           const item = document.createElement("div");
           item.className = "hub-item";
           item.innerHTML = `
-            <div class="hub-item-avatar">📅</div>
+            <div class="hub-item-avatar">${ICONS.calendar}</div>
             <div class="hub-item-body">
               <div class="hub-item-title">${escapeHtml(title)}</div>
               <div class="hub-item-sub">${when.toLocaleString()}${row.invited_emails && row.invited_emails.length ? " · " + escapeHtml(row.invited_emails.join(", ")) : ""}</div>
             </div>
             <div class="hub-item-actions">
-              <button class="hub-icon-btn" title="Copy link">🔗</button>
-              <button class="hub-icon-btn call" title="Join now">📞</button>
-              <button class="hub-icon-btn danger" title="Cancel">✕</button>
+              <button class="hub-icon-btn" title="Copy link">${ICONS.link}</button>
+              <button class="hub-icon-btn call" title="Join now">${ICONS.phone}</button>
+              <button class="hub-icon-btn danger" title="Cancel">${ICONS.close}</button>
             </div>`;
           item.querySelector('[title="Copy link"]').addEventListener(
             "click",
@@ -2230,7 +2411,8 @@
               copyToClipboard(
                 buildInviteLink(row.server_url, row.room_code),
                 e.currentTarget,
-                "🔗",
+                ICONS.link,
+                ICONS.check,
               ),
           );
           item
@@ -3170,18 +3352,21 @@
         if (!localStream) return;
         micOn = !micOn;
         localStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
-        $("toggle-mic").textContent = micOn ? "🎙️" : "🔇";
+        $("toggle-mic").innerHTML = micOn ? ICONS.micOn : ICONS.micOff;
         $("toggle-mic").title = micOn ? "Mute" : "Unmute";
         $("toggle-mic").classList.toggle("active", !micOn);
       };
 
-      /* ---------------- Camera on/off, mid-call, no reconnect ----------------
+      /* ---------------- Camera on/off, mid-call ----------------
    Every peer connection already has a reserved (but possibly empty) video
    slot, created in createPeerConnection(). Turning the camera on or off
-   just swaps what's playing through that slot via replaceTrack() -- the
-   call itself never drops or renegotiates. */
+   swaps what's playing through that slot via replaceTrack(), followed by
+   a quick renegotiation so it's actually guaranteed to start flowing (see
+   replaceOutgoingVideoTrack) -- the call itself never drops. */
       function updateCameraButtonLabel() {
-        $("toggle-cam").textContent = cameraVideoTrack ? "🎥" : "📷";
+        $("toggle-cam").innerHTML = cameraVideoTrack
+          ? ICONS.camOn
+          : ICONS.camOff;
         $("toggle-cam").title = cameraVideoTrack
           ? "Turn off camera"
           : "Turn on camera";
@@ -3285,7 +3470,7 @@
           replaceOutgoingVideoTrack(screenTrack);
           $("local-video").srcObject = screenStream;
           $("local-tile").classList.remove("no-video");
-          $("toggle-screen").textContent = "🛑";
+          $("toggle-screen").innerHTML = ICONS.screenOff;
           $("toggle-screen").title = "Stop sharing";
           $("toggle-screen").classList.add("active");
           // If the user stops sharing via the browser's own "Stop sharing" UI:
@@ -3304,7 +3489,7 @@
         replaceOutgoingVideoTrack(cameraVideoTrack); // null if the camera happens to be off too -- that's fine
         $("local-video").srcObject = localStream;
         $("local-tile").classList.toggle("no-video", !cameraVideoTrack);
-        $("toggle-screen").textContent = "🖥️";
+        $("toggle-screen").innerHTML = ICONS.screenOn;
         $("toggle-screen").title = "Share screen";
         $("toggle-screen").classList.remove("active");
       }
@@ -3362,13 +3547,13 @@
         $("unread-badge").classList.remove("show");
 
         micOn = true;
-        $("toggle-mic").textContent = "🎙️";
+        $("toggle-mic").innerHTML = ICONS.micOn;
         $("toggle-mic").title = "Mute";
         $("toggle-mic").classList.remove("active");
-        $("toggle-cam").textContent = "🎥";
+        $("toggle-cam").innerHTML = ICONS.camOn;
         $("toggle-cam").title = "Turn off camera";
         $("toggle-cam").classList.remove("active");
-        $("toggle-screen").textContent = "🖥️";
+        $("toggle-screen").innerHTML = ICONS.screenOn;
         $("toggle-screen").title = "Share screen";
         $("toggle-screen").classList.remove("active");
 

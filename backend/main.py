@@ -350,10 +350,17 @@ async def send_incoming_call_push(to_emails: List[str], room_code: str, caller_e
         for row in rows:
             expired_endpoint = await asyncio.to_thread(_send_one_push, row["subscription"], payload)
             if expired_endpoint:
+                logger.info(
+                    f"Push subscription for {email} is expired/invalid (FCM/APNs "
+                    f"returned 404/410) -- removing it. They'll need to click "
+                    f"'Enable call alerts' again on that device."
+                )
                 try:
                     await delete_push_subscription(expired_endpoint)
                 except httpx.HTTPError:
                     pass
+            else:
+                logger.info(f"Sent incoming-call push to {email}")
 
 
 async def send_scheduled_call_push(to_emails: List[str], room_code: str, title: str) -> None:
@@ -373,10 +380,15 @@ async def send_scheduled_call_push(to_emails: List[str], room_code: str, title: 
         for row in rows:
             expired_endpoint = await asyncio.to_thread(_send_one_push, row["subscription"], payload)
             if expired_endpoint:
+                logger.info(
+                    f"Push subscription for {email} is expired/invalid -- removing it."
+                )
                 try:
                     await delete_push_subscription(expired_endpoint)
                 except httpx.HTTPError:
                     pass
+            else:
+                logger.info(f"Sent scheduled-call push to {email}")
 
 
 # How far back we're still willing to send a "just missed it" reminder for --

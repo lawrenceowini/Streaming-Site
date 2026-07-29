@@ -2980,7 +2980,16 @@
       async function handleOffer(fromId, sdp) {
         let pc = peerConnections.get(fromId);
         if (!pc) pc = createPeerConnection(fromId, false);
-        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        } catch (e) {
+          // Both sides tried to renegotiate at the same moment -- rare, and
+          // not worth a full "polite peer" collision protocol for a button
+          // toggle. The next renegotiation attempt (e.g. the next camera
+          // toggle) will succeed normally.
+          console.warn(`Skipped a colliding renegotiation offer from ${fromId}:`, e);
+          return;
+        }
         flushPendingCandidates(fromId);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -3227,8 +3236,36 @@
 
       /* ---------------- Screen sharing ---------------- */
       function replaceOutgoingVideoTrack(newTrack) {
-        for (const sender of videoSenders.values()) {
+        for (const [peerId, sender] of videoSenders.entries()) {
           sender.replaceTrack(newTrack).catch(() => {});
+          // replaceTrack() alone reliably avoids a reconnect when swapping
+          // between two tracks that were *already* actively flowing (e.g.
+          // camera <-> screen share once video's been live). But going from
+          // a transceiver that has *never* sent real video (our reserved,
+          // still-empty video slot on a call that started audio-only) to
+          // sending its first real frame is a different case some browsers
+          // won't actually start transmitting without a proper
+          // renegotiation, even though replaceTrack() itself resolves
+          // successfully. Renegotiating here is cheap and makes every case
+          // -- first camera-on, camera-off, and screen share -- equally
+          // reliable instead of depending on that distinction.
+          renegotiate(peerId);
+        }
+      }
+
+      // Re-offers on an already-connected peer connection -- this is a
+      // normal, supported WebRTC operation (not a full reconnect): the
+      // existing connection, ICE candidates, and any other active media are
+      // untouched, only the SDP gets refreshed to reflect the track change.
+      async function renegotiate(peerId) {
+        const pc = peerConnections.get(peerId);
+        if (!pc || pc.signalingState !== "stable") return; // an offer is already in flight -- skip rather than collide
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          ws.send(JSON.stringify({ type: "offer", to: peerId, sdp: offer }));
+        } catch (e) {
+          console.warn(`Renegotiation failed for ${peerId}:`, e);
         }
       }
 

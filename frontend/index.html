@@ -428,6 +428,12 @@
         font-weight: 700;
         font-size: 13px;
         flex-shrink: 0;
+        overflow: hidden;
+      }
+      .hub-item-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
       .hub-item-avatar svg {
         width: 17px;
@@ -2903,6 +2909,20 @@
           return;
         }
 
+        // Live profile lookup (current username + photo) for whoever's on
+        // the other side of each conversation -- more reliable than the
+        // snapshot saved on the conversation row itself, which only ever
+        // reflects what it was when that conversation first started.
+        const otherIds = data.map((c) => (c.user_a_id === myId ? c.user_b_id : c.user_a_id));
+        const profileMap = {};
+        if (otherIds.length) {
+          const { data: profiles } = await sb
+            .from("profiles")
+            .select("id,username,email,avatar_url")
+            .in("id", otherIds);
+          for (const p of profiles || []) profileMap[p.id] = p;
+        }
+
         // One query for every unread message across all my conversations,
         // grouped client-side -- cheaper than a per-conversation count.
         const unreadByConv = {};
@@ -2922,16 +2942,20 @@
         list.innerHTML = "";
         $("conversations-empty").style.display = data.length ? "none" : "block";
         for (const conv of data) {
-          const otherDisplay =
+          const otherId = conv.user_a_id === myId ? conv.user_b_id : conv.user_a_id;
+          const otherProfile = profileMap[otherId];
+          const fallbackDisplay =
             conv.user_a_id === myId
               ? conv.user_b_username || conv.user_b_email
               : conv.user_a_username || conv.user_a_email;
+          const otherDisplay = (otherProfile && (otherProfile.username || otherProfile.email)) || fallbackDisplay;
+          const avatarUrl = otherProfile && otherProfile.avatar_url;
           const unreadCountForConv = unreadByConv[conv.id] || 0;
           const item = document.createElement("div");
           item.className = "hub-item";
           item.style.cursor = "pointer";
           item.innerHTML = `
-            <div class="hub-item-avatar">${escapeHtml(initialsFor(otherDisplay))}</div>
+            <div class="hub-item-avatar">${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="">` : escapeHtml(initialsFor(otherDisplay))}</div>
             <div class="hub-item-body">
               <div class="hub-item-title">${escapeHtml(otherDisplay)}</div>
               <div class="hub-item-sub">${escapeHtml(conv.last_message_preview || "No messages yet")}${conv.last_message_at ? " · " + relativeTime(conv.last_message_at) : ""}</div>
@@ -3053,14 +3077,34 @@
       async function openConversationThread(conv) {
         currentThreadConv = conv;
         const myId = currentSession.user.id;
-        const otherDisplay =
+        const otherId = conv.user_a_id === myId ? conv.user_b_id : conv.user_a_id;
+        const fallbackDisplay =
           conv.user_a_id === myId
             ? conv.user_b_username || conv.user_b_email
             : conv.user_a_username || conv.user_a_email;
-        $("thread-title").textContent = otherDisplay;
-        $("thread-avatar").textContent = initialsFor(otherDisplay);
+
+        // Show something immediately from the conversation's own snapshot,
+        // then refine it with the live profile once that loads (covers the
+        // case where they've since changed their username or added a photo).
+        $("thread-title").textContent = fallbackDisplay;
+        $("thread-avatar").textContent = initialsFor(fallbackDisplay);
         $("chats-list-view").style.display = "none";
         $("chat-thread-view").style.display = "flex";
+
+        sb.from("profiles")
+          .select("username,email,avatar_url")
+          .eq("id", otherId)
+          .maybeSingle()
+          .then(({ data: otherProfile }) => {
+            if (!otherProfile || currentThreadConv !== conv) return; // thread changed while this was in flight
+            const display = otherProfile.username || otherProfile.email || fallbackDisplay;
+            $("thread-title").textContent = display;
+            if (otherProfile.avatar_url) {
+              $("thread-avatar").innerHTML = `<img src="${escapeHtml(otherProfile.avatar_url)}" alt="">`;
+            } else {
+              $("thread-avatar").textContent = initialsFor(display);
+            }
+          });
 
         await loadThreadMessages(conv.id);
         await markConversationRead(conv.id);

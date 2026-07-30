@@ -1271,7 +1271,8 @@
         opacity: 0.4;
         cursor: not-allowed;
       }
-      #chat-attach {
+      #chat-attach,
+      #thread-attach {
         background: transparent;
         border: 1px solid var(--line);
         color: var(--text-dim);
@@ -1283,11 +1284,13 @@
         align-items: center;
         justify-content: center;
       }
-      #chat-attach svg {
+      #chat-attach svg,
+      #thread-attach svg {
         width: 15px;
         height: 15px;
       }
-      #chat-attach:hover:not(:disabled) {
+      #chat-attach:hover:not(:disabled),
+      #thread-attach:hover:not(:disabled) {
         border-color: var(--accent);
         color: var(--accent);
       }
@@ -1672,6 +1675,18 @@
           </div>
           <div class="thread-log" id="thread-log"></div>
           <div class="chat-input-row">
+            <button id="thread-attach" title="Send a photo or file">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6z"
+                ></path>
+              </svg>
+            </button>
+            <input
+              type="file"
+              id="thread-file-input"
+              style="display: none"
+            />
             <input
               type="text"
               id="thread-input"
@@ -2839,17 +2854,79 @@
           console.warn("Could not load messages:", error);
           return;
         }
-        for (const m of data) renderThreadMessage(m);
+        for (const m of data) await renderThreadMessage(m);
         log.scrollTop = log.scrollHeight;
       }
 
-      function renderThreadMessage(m) {
+      // Signed URLs are required since the chat-media bucket is private --
+      // anyone with the URL could otherwise view it, so it can't be public.
+      async function signedMediaUrl(path) {
+        const { data, error } = await sb.storage
+          .from("chat-media")
+          .createSignedUrl(path, 3600); // an hour is plenty for viewing/downloading in one sitting
+        if (error) {
+          console.warn("Could not get a signed URL for media:", error);
+          return null;
+        }
+        return data.signedUrl;
+      }
+
+      async function renderThreadMessage(m) {
         const mine = m.sender_id === currentSession.user.id;
         const wrap = document.createElement("div");
         wrap.className = "chat-msg " + (mine ? "me" : "them");
         const bubble = document.createElement("div");
         bubble.className = "bubble";
-        bubble.textContent = m.body;
+
+        if (m.media_path) {
+          const url = await signedMediaUrl(m.media_path);
+          const isImage = m.media_mime && m.media_mime.startsWith("image/");
+          if (isImage && url) {
+            const link = document.createElement("a");
+            link.href = url;
+            link.target = "_blank";
+            link.rel = "noopener";
+            const img = document.createElement("img");
+            img.className = "file-thumb";
+            img.style.width = "160px";
+            img.style.height = "auto";
+            img.style.borderRadius = "8px";
+            img.src = url;
+            link.appendChild(img);
+            bubble.appendChild(link);
+          } else {
+            const fileBubble = document.createElement("div");
+            fileBubble.className = "file-bubble";
+            const icon = document.createElement("div");
+            icon.className = "file-icon";
+            icon.textContent = fileIconFor(m.media_mime);
+            const info = document.createElement("div");
+            info.className = "file-info";
+            info.innerHTML = `<div class="file-name">${escapeHtml(m.media_name || "File")}</div><div class="file-status">${m.media_size ? formatFileSize(m.media_size) : ""}</div>`;
+            fileBubble.appendChild(icon);
+            fileBubble.appendChild(info);
+            if (url) {
+              const dl = document.createElement("a");
+              dl.className = "file-download ready";
+              dl.href = url;
+              dl.download = m.media_name || "file";
+              dl.target = "_blank";
+              dl.rel = "noopener";
+              dl.innerHTML = ICONS.link;
+              fileBubble.appendChild(dl);
+            }
+            bubble.appendChild(fileBubble);
+          }
+          if (m.body) {
+            const caption = document.createElement("div");
+            caption.style.marginTop = "6px";
+            caption.textContent = m.body;
+            bubble.appendChild(caption);
+          }
+        } else {
+          bubble.appendChild(document.createTextNode(m.body));
+        }
+
         if (mine) {
           const status = document.createElement("span");
           status.className = "msg-status" + (m.status === "read" ? " read" : "");
@@ -2882,8 +2959,8 @@
           .on(
             "postgres_changes",
             { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
-            (payload) => {
-              renderThreadMessage(payload.new);
+            async (payload) => {
+              await renderThreadMessage(payload.new);
               $("thread-log").scrollTop = $("thread-log").scrollHeight;
               if (payload.new.sender_id !== currentSession.user.id) {
                 markConversationRead(conversationId);
@@ -2910,6 +2987,36 @@
       }
       $("thread-back-btn").onclick = closeConversationThread;
 
+      // Shared by both a text message and a media message: bumps the
+      // conversation's preview/timestamp and best-effort pings the
+      // recipient's push notification.
+      async function finishSendingMessage(conv, previewText) {
+        const myId = currentSession.user.id;
+        await sb
+          .from("conversations")
+          .update({
+            last_message_at: new Date().toISOString(),
+            last_message_preview: previewText.slice(0, 140),
+          })
+          .eq("id", conv.id);
+
+        const otherEmail = conv.user_a_id === myId ? conv.user_b_email : conv.user_a_email;
+        const token = await getAccessToken();
+        const serverHttp = wsUrlToHttp(normalizeWsUrl(serverUrlInput.value));
+        if (serverHttp && token) {
+          fetch(`${serverHttp}/push/notify-message`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token,
+              to_email: otherEmail,
+              conversation_id: conv.id,
+              preview: previewText.slice(0, 120),
+            }),
+          }).catch(() => {}); // best effort -- the message itself is already safely stored either way
+        }
+      }
+
       async function sendThreadMessage() {
         const body = $("thread-input").value.trim();
         if (!body || !currentThreadConv) return;
@@ -2928,33 +3035,56 @@
           alert("Could not send that message: " + error.message);
           return;
         }
-        await sb
-          .from("conversations")
-          .update({
-            last_message_at: new Date().toISOString(),
-            last_message_preview: body.slice(0, 140),
-          })
-          .eq("id", conv.id);
-
-        const otherEmail = conv.user_a_id === myId ? conv.user_b_email : conv.user_a_email;
-        const token = await getAccessToken();
-        const serverHttp = wsUrlToHttp(normalizeWsUrl(serverUrlInput.value));
-        if (serverHttp && token) {
-          fetch(`${serverHttp}/push/notify-message`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token,
-              to_email: otherEmail,
-              conversation_id: conv.id,
-              preview: body.slice(0, 120),
-            }),
-          }).catch(() => {}); // best effort -- the message itself is already safely stored either way
-        }
+        await finishSendingMessage(conv, body);
       }
       $("thread-send-btn").onclick = sendThreadMessage;
       $("thread-input").addEventListener("keydown", (e) => {
         if (e.key === "Enter") sendThreadMessage();
+      });
+
+      const MAX_CHAT_MEDIA_BYTES = 25 * 1024 * 1024; // matches the in-call file-share limit
+      $("thread-attach").onclick = () => $("thread-file-input").click();
+      $("thread-file-input").addEventListener("change", async () => {
+        const file = $("thread-file-input").files[0];
+        $("thread-file-input").value = ""; // lets the same file be picked again later
+        if (!file || !currentThreadConv) return;
+        if (file.size > MAX_CHAT_MEDIA_BYTES) {
+          alert(`That file is too large to send (max ${formatFileSize(MAX_CHAT_MEDIA_BYTES)}).`);
+          return;
+        }
+        const conv = currentThreadConv;
+        const myId = currentSession.user.id;
+        const myEmail = currentSession.user.email;
+
+        $("thread-attach").disabled = true;
+        try {
+          const path = `${conv.id}/${crypto.randomUUID()}-${file.name}`;
+          const { error: uploadError } = await sb.storage
+            .from("chat-media")
+            .upload(path, file, { contentType: file.type || "application/octet-stream" });
+          if (uploadError) {
+            alert("Could not send that file: " + uploadError.message);
+            return;
+          }
+          const { error: insertError } = await sb.from("messages").insert({
+            conversation_id: conv.id,
+            sender_id: myId,
+            sender_email: myEmail,
+            body: "",
+            media_path: path,
+            media_mime: file.type || "application/octet-stream",
+            media_name: file.name,
+            media_size: file.size,
+          });
+          if (insertError) {
+            alert("Could not send that file: " + insertError.message);
+            return;
+          }
+          const isImage = file.type && file.type.startsWith("image/");
+          await finishSendingMessage(conv, isImage ? "📷 Photo" : `📎 ${file.name}`);
+        } finally {
+          $("thread-attach").disabled = false;
+        }
       });
 
       // A push notification for a message deep-links to /?chat=<id> --

@@ -250,3 +250,44 @@ begin
     alter publication supabase_realtime add table conversations;
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Media sharing in chat (images/files). Unlike the in-call file transfer
+-- (live, peer-to-peer over a DataChannel -- only works while both people are
+-- online at the same moment), this is stored in Supabase Storage so it's
+-- there whenever the recipient next opens the conversation.
+-- ---------------------------------------------------------------------------
+
+alter table messages add column if not exists media_path text;
+alter table messages add column if not exists media_mime text;
+alter table messages add column if not exists media_name text;
+alter table messages add column if not exists media_size bigint;
+
+insert into storage.buckets (id, name, public)
+values ('chat-media', 'chat-media', false)
+on conflict (id) do nothing;
+
+-- Objects are stored as "{conversation_id}/{random-filename}" -- these
+-- policies check that the first path segment is a conversation the
+-- requesting user is actually a participant in, same participant check as
+-- the messages table itself.
+drop policy if exists "chat_media_select_participant" on storage.objects;
+create policy "chat_media_select_participant" on storage.objects
+  for select using (
+    bucket_id = 'chat-media'
+    and exists (
+      select 1 from conversations c
+      where c.id::text = (storage.foldername(name))[1]
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+    )
+  );
+drop policy if exists "chat_media_insert_participant" on storage.objects;
+create policy "chat_media_insert_participant" on storage.objects
+  for insert with check (
+    bucket_id = 'chat-media'
+    and exists (
+      select 1 from conversations c
+      where c.id::text = (storage.foldername(name))[1]
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+    )
+  );

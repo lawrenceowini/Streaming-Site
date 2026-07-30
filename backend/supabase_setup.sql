@@ -291,3 +291,32 @@ create policy "chat_media_insert_participant" on storage.objects
         and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
     )
   );
+
+-- ---------------------------------------------------------------------------
+-- Usernames: people search for and message each other by username instead
+-- of email (email is still used internally for push delivery, since
+-- push_subscriptions is keyed by email -- this is purely an identity/search
+-- layer on top, not a replacement for it).
+-- ---------------------------------------------------------------------------
+
+alter table profiles add column if not exists username text;
+
+-- Case-insensitive uniqueness ("Sam" and "sam" can't both exist) while still
+-- preserving whatever casing the person actually chose for display.
+drop index if exists profiles_username_lower_idx;
+create unique index profiles_username_lower_idx on profiles (lower(username))
+  where username is not null;
+
+-- profiles only had a select policy before -- this lets someone set/change
+-- their own username (and only their own; auth.uid() = id enforces that).
+drop policy if exists "profiles_update_own" on profiles;
+create policy "profiles_update_own" on profiles
+  for update using (auth.uid() = id) with check (auth.uid() = id);
+
+-- Denormalized onto conversations (like the emails already are) so the chat
+-- list and thread header can display a username without an extra lookup,
+-- and so it still shows correctly even if the other person changes their
+-- username later -- it reflects what it was when the conversation started,
+-- same as the email columns already do.
+alter table conversations add column if not exists user_a_username text;
+alter table conversations add column if not exists user_b_username text;

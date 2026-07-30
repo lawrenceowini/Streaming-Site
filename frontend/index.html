@@ -269,6 +269,27 @@
         color: var(--text);
         font-weight: 600;
       }
+      .username-edit-btn {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: var(--text-dim);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .username-edit-btn svg {
+        width: 12px;
+        height: 12px;
+      }
+      .username-edit-btn:hover {
+        color: var(--accent);
+        background: var(--bg-panel-2);
+      }
       .account-actions {
         display: flex;
         gap: 8px;
@@ -1451,7 +1472,14 @@
     <div class="account-bar" id="account-bar" style="display: none">
       <div class="account-identity">
         <div class="account-avatar" id="account-avatar">?</div>
-        <span>Signed in as <strong id="account-email"></strong></span>
+        <span>Signed in as <strong id="account-name"></strong></span>
+        <button class="username-edit-btn" id="username-edit-btn" title="Set username">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+            ></path>
+          </svg>
+        </button>
       </div>
       <div class="account-actions">
         <button class="ghost-btn" id="notif-toggle">
@@ -1646,8 +1674,8 @@
           <div class="favorite-add-row">
             <input
               type="text"
-              id="new-chat-email"
-              placeholder="Start a chat by email"
+              id="new-chat-username"
+              placeholder="Start a chat by username"
             />
             <button class="ghost-btn" id="new-chat-btn">+ Chat</button>
           </div>
@@ -1881,6 +1909,7 @@
 
       /* ---------------- Auth ---------------- */
       let currentSession = null;
+      let myProfile = null; // { id, email, username }
       let authMode = "login"; // 'login' | 'signup'
       let inviteHadServerParam = false; // true if ?server=... was in the URL on load
 
@@ -1917,9 +1946,8 @@
         currentSession = session;
         authPanel.style.display = "none";
         accountBar.style.display = "flex";
-        $("account-email").textContent = session.user.email;
-        $("account-avatar").textContent = initialsFor(session.user.email);
         callsHub.style.display = "flex";
+        loadMyProfile();
 
         // An invite link's ?server=... always wins over the saved default, since
         // it reflects whoever sent the link, not this account's own history.
@@ -2671,6 +2699,63 @@
         return div.innerHTML;
       }
 
+      /* ================= Username: identity used for finding/messaging people ================= */
+      // Email still works internally for push delivery (push_subscriptions
+      // is keyed by email) -- this is purely the identity/search layer
+      // people actually see and type, the same way a WhatsApp display name
+      // sits on top of a phone number.
+      async function loadMyProfile() {
+        const myId = currentSession.user.id;
+        const { data, error } = await sb.from("profiles").select("*").eq("id", myId).maybeSingle();
+        if (error) {
+          console.warn("Could not load profile:", error);
+          return;
+        }
+        // The signup trigger should have already created this row, but be
+        // defensive in case of an account created before that trigger existed.
+        myProfile = data || { id: myId, email: currentSession.user.email, username: null };
+        renderAccountIdentity();
+      }
+
+      function renderAccountIdentity() {
+        const display = myProfile.username || myProfile.email;
+        $("account-name").textContent = display;
+        $("account-avatar").textContent = initialsFor(display);
+        $("username-edit-btn").title = myProfile.username ? "Change username" : "Set username";
+      }
+
+      $("username-edit-btn").onclick = async () => {
+        const current = myProfile.username || "";
+        const input = prompt(
+          "Choose a username (what people will search for to message you):",
+          current,
+        );
+        if (input === null) return; // cancelled
+        const username = input.trim();
+        if (!username) {
+          alert("Username can't be empty.");
+          return;
+        }
+        if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+          alert("Usernames can only use letters, numbers, and underscores (3-20 characters).");
+          return;
+        }
+        const { error } = await sb
+          .from("profiles")
+          .update({ username })
+          .eq("id", currentSession.user.id);
+        if (error) {
+          if (error.message && error.message.toLowerCase().includes("duplicate")) {
+            alert("That username is already taken -- try another.");
+          } else {
+            alert("Could not set username: " + error.message);
+          }
+          return;
+        }
+        myProfile.username = username;
+        renderAccountIdentity();
+      };
+
       /* ================= Chats: persistent 1:1 messaging ================= */
       // Unlike the in-call chat (ephemeral, over a WebRTC DataChannel, gone
       // once the call ends), this is durable: stored in Supabase so it's
@@ -2716,15 +2801,18 @@
         list.innerHTML = "";
         $("conversations-empty").style.display = data.length ? "none" : "block";
         for (const conv of data) {
-          const otherEmail = conv.user_a_id === myId ? conv.user_b_email : conv.user_a_email;
+          const otherDisplay =
+            conv.user_a_id === myId
+              ? conv.user_b_username || conv.user_b_email
+              : conv.user_a_username || conv.user_a_email;
           const unreadCountForConv = unreadByConv[conv.id] || 0;
           const item = document.createElement("div");
           item.className = "hub-item";
           item.style.cursor = "pointer";
           item.innerHTML = `
-            <div class="hub-item-avatar">${escapeHtml(initialsFor(otherEmail))}</div>
+            <div class="hub-item-avatar">${escapeHtml(initialsFor(otherDisplay))}</div>
             <div class="hub-item-body">
-              <div class="hub-item-title">${escapeHtml(otherEmail)}</div>
+              <div class="hub-item-title">${escapeHtml(otherDisplay)}</div>
               <div class="hub-item-sub">${escapeHtml(conv.last_message_preview || "No messages yet")}${conv.last_message_at ? " · " + relativeTime(conv.last_message_at) : ""}</div>
             </div>
             ${unreadCountForConv ? `<span class="unread-badge show" style="position: static">${unreadCountForConv}</span>` : ""}
@@ -2766,25 +2854,25 @@
       }
 
       $("new-chat-btn").onclick = async () => {
-        const email = $("new-chat-email").value.trim().toLowerCase();
-        if (!email) return;
-        if (email === (currentSession.user.email || "").toLowerCase()) {
-          alert("That's your own email.");
+        const username = $("new-chat-username").value.trim();
+        if (!username) return;
+        if (myProfile.username && username.toLowerCase() === myProfile.username.toLowerCase()) {
+          alert("That's your own username.");
           return;
         }
         $("new-chat-btn").disabled = true;
         try {
           const { data: profile, error } = await sb
             .from("profiles")
-            .select("id,email")
-            .eq("email", email)
+            .select("id,email,username")
+            .ilike("username", username) // exact match, case-insensitive
             .maybeSingle();
           if (error || !profile) {
-            alert("No account found with that email.");
+            alert("No account found with that username.");
             return;
           }
-          const conv = await getOrCreateConversation(profile.id, profile.email);
-          $("new-chat-email").value = "";
+          const conv = await getOrCreateConversation(profile);
+          $("new-chat-username").value = "";
           openConversationThread(conv);
         } catch (e) {
           // getOrCreateConversation already alerted
@@ -2793,11 +2881,17 @@
         }
       };
 
-      async function getOrCreateConversation(otherId, otherEmail) {
+      async function getOrCreateConversation(otherProfile) {
         const myId = currentSession.user.id;
         const myEmail = currentSession.user.email;
-        const [aId, bId, aEmail, bEmail] =
-          myId < otherId ? [myId, otherId, myEmail, otherEmail] : [otherId, myId, otherEmail, myEmail];
+        const myUsername = (myProfile && myProfile.username) || null;
+        const otherId = otherProfile.id;
+        const otherEmail = otherProfile.email;
+        const otherUsername = otherProfile.username || null;
+        const [aId, bId, aEmail, bEmail, aUsername, bUsername] =
+          myId < otherId
+            ? [myId, otherId, myEmail, otherEmail, myUsername, otherUsername]
+            : [otherId, myId, otherEmail, myEmail, otherUsername, myUsername];
 
         // Upsert instead of select-then-insert: the old check-then-insert
         // had a race window where two near-simultaneous attempts (a
@@ -2807,7 +2901,14 @@
         // ignoreDuplicates means "if it's already there, leave it alone" --
         // we always re-select afterward to get the definitive row either way.
         const { error: upsertError } = await sb.from("conversations").upsert(
-          { user_a_id: aId, user_b_id: bId, user_a_email: aEmail, user_b_email: bEmail },
+          {
+            user_a_id: aId,
+            user_b_id: bId,
+            user_a_email: aEmail,
+            user_b_email: bEmail,
+            user_a_username: aUsername,
+            user_b_username: bUsername,
+          },
           { onConflict: "user_a_id,user_b_id", ignoreDuplicates: true },
         );
         if (upsertError) {
@@ -2831,9 +2932,12 @@
       async function openConversationThread(conv) {
         currentThreadConv = conv;
         const myId = currentSession.user.id;
-        const otherEmail = conv.user_a_id === myId ? conv.user_b_email : conv.user_a_email;
-        $("thread-title").textContent = otherEmail;
-        $("thread-avatar").textContent = initialsFor(otherEmail);
+        const otherDisplay =
+          conv.user_a_id === myId
+            ? conv.user_b_username || conv.user_b_email
+            : conv.user_a_username || conv.user_a_email;
+        $("thread-title").textContent = otherDisplay;
+        $("thread-avatar").textContent = initialsFor(otherDisplay);
         $("chats-list-view").style.display = "none";
         $("chat-thread-view").style.display = "flex";
 
@@ -3012,6 +3116,7 @@
               to_email: otherEmail,
               conversation_id: conv.id,
               preview: previewText.slice(0, 120),
+              from_display: (myProfile && myProfile.username) || currentSession.user.email,
             }),
           }).catch(() => {}); // best effort -- the message itself is already safely stored either way
         }

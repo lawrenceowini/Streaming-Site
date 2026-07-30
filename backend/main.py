@@ -333,15 +333,15 @@ def _send_one_push(subscription: dict, payload: dict) -> Optional[str]:
     return None
 
 
-async def send_message_push(to_email: str, from_email: str, conversation_id: str, preview: str) -> None:
+async def send_message_push(to_email: str, from_display: str, conversation_id: str, preview: str) -> None:
     if not (_vapid_key_file and VAPID_PUBLIC_KEY and VAPID_CONTACT_EMAIL):
         return  # push isn't configured -- silently skip
     payload = {
         "kind": "message",
-        "title": from_email,
+        "title": from_display,
         "body": preview[:120],  # keep notifications short, like every other messenger does
         "conversation_id": conversation_id,
-        "from": from_email,
+        "from": from_display,
     }
     try:
         rows = await get_push_subscriptions_for_email(to_email)
@@ -525,6 +525,7 @@ class NotifyMessageBody(BaseModel):
     to_email: str
     conversation_id: str
     preview: str
+    from_display: Optional[str] = None  # username, if the sender has one set -- falls back to their email
 
 
 @app.post("/push/notify-message")
@@ -538,10 +539,11 @@ async def push_notify_message(body: NotifyMessageBody):
     if user is None:
         return {"error": "invalid session"}, 401
     from_email = (user.get("email") or "").lower()
+    from_display = body.from_display or from_email
     to_email = (body.to_email or "").lower()
     if not to_email or not body.conversation_id:
         return {"error": "missing to_email or conversation_id"}, 400
-    await send_message_push(to_email, from_email, body.conversation_id, body.preview or "")
+    await send_message_push(to_email, from_display, body.conversation_id, body.preview or "")
     return {"status": "sent"}
 
 

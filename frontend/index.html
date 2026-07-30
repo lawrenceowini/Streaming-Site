@@ -226,22 +226,53 @@
       }
       .account-bar {
         width: 100%;
-        max-width: 460px;
+        max-width: 500px;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 10px;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: var(--radius);
+        border-radius: var(--radius) var(--radius) 0 0;
+        border-bottom: none;
         padding: 10px 16px;
-        margin-bottom: 16px;
         font-size: 12px;
         color: var(--text-dim);
         font-family: var(--mono);
+        flex-wrap: wrap;
+      }
+      .account-identity {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      .account-avatar {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--accent-dim);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 11px;
+        flex-shrink: 0;
+      }
+      .account-identity span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .account-bar strong {
         color: var(--text);
         font-weight: 600;
+      }
+      .account-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
       }
 
       /* ---------------- Calls hub: tab bar + panels ---------------- */
@@ -256,30 +287,28 @@
       .hub-tabs {
         display: flex;
         flex-direction: column;
-        width: 76px;
+        align-items: center;
+        width: 56px;
         flex-shrink: 0;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: var(--radius) 0 0 var(--radius);
+        border-radius: 0 0 0 var(--radius);
         border-right: none;
-        overflow: hidden;
+        padding: 10px 0;
+        gap: 6px;
       }
       .hub-tab {
-        flex: 1;
+        flex: 0 0 auto;
+        width: 42px;
+        height: 42px;
         background: transparent;
         border: none;
         color: var(--text-dim);
-        font-family: var(--mono);
-        font-size: 10.5px;
-        padding: 10px 4px;
         cursor: pointer;
-        border-right: 2px solid transparent;
-        white-space: nowrap;
+        border-radius: 10px;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 4px;
       }
       .hub-tab svg {
         width: 20px;
@@ -287,18 +316,18 @@
       }
       .hub-tab:hover {
         color: var(--text);
+        background: var(--bg-panel-2);
       }
       .hub-tab.active {
         color: var(--accent);
-        border-right-color: var(--accent);
-        background: var(--bg-panel-2);
+        background: var(--accent-dim);
       }
       .hub-panel {
         flex: 1;
         min-width: 0;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: 0 var(--radius) var(--radius) 0;
+        border-radius: 0 0 var(--radius) 0;
         padding: 18px 20px 20px;
       }
       #hub-panel-call {
@@ -1015,12 +1044,11 @@
          gaps so the control bar can never need horizontal scrolling. */
       @media (max-width: 380px) {
         .hub-tabs {
-          width: 60px;
+          width: 48px;
         }
         .hub-tab {
-          padding: 8px 2px;
-          font-size: 9.5px;
-          gap: 3px;
+          width: 36px;
+          height: 36px;
         }
         .hub-tab svg {
           width: 17px;
@@ -1368,8 +1396,11 @@
 
     <!-- Account bar: shown when signed in -->
     <div class="account-bar" id="account-bar" style="display: none">
-      <span>Signed in as <strong id="account-email"></strong></span>
-      <div style="display: flex; gap: 8px">
+      <div class="account-identity">
+        <div class="account-avatar" id="account-avatar">?</div>
+        <span>Signed in as <strong id="account-email"></strong></span>
+      </div>
+      <div class="account-actions">
         <button class="ghost-btn" id="notif-toggle">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
@@ -1378,43 +1409,46 @@
           </svg>
           <span>Enable call alerts</span>
         </button>
-        <button class="ghost-btn" id="logout-btn">Log out</button>
+        <button class="ghost-btn" id="logout-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M10 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h6v-2H5V5h5V3zm4.29 3.29-1.29 1.29L15.59 10H8v2h7.59l-2.59 2.42 1.29 1.29L19.58 11z"
+            ></path>
+          </svg>
+          <span>Log out</span>
+        </button>
       </div>
     </div>
 
     <div class="calls-hub" id="calls-hub" style="display: none">
       <div class="hub-tabs">
-        <button class="hub-tab active" data-tab="call">
+        <button class="hub-tab active" data-tab="call" title="Call">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
             ></path>
           </svg>
-          <span>Call</span>
         </button>
-        <button class="hub-tab" data-tab="recents">
+        <button class="hub-tab" data-tab="recents" title="Recents">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 10.41V6h-2v7l5.25 3.15 1-1.64z"
             ></path>
           </svg>
-          <span>Recents</span>
         </button>
-        <button class="hub-tab" data-tab="favorites">
+        <button class="hub-tab" data-tab="favorites" title="Favorites">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"
             ></path>
           </svg>
-          <span>Favorites</span>
         </button>
-        <button class="hub-tab" data-tab="schedule">
+        <button class="hub-tab" data-tab="schedule" title="Schedule">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V9h14z"
             ></path>
           </svg>
-          <span>Schedule</span>
         </button>
       </div>
 
@@ -1765,6 +1799,7 @@
         authPanel.style.display = "none";
         accountBar.style.display = "flex";
         $("account-email").textContent = session.user.email;
+        $("account-avatar").textContent = initialsFor(session.user.email);
         callsHub.style.display = "flex";
 
         // An invite link's ?server=... always wins over the saved default, since

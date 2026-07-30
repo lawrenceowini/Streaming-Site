@@ -309,6 +309,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        position: relative;
       }
       .hub-tab svg {
         width: 20px;
@@ -1148,6 +1149,55 @@
         font-size: 13px;
         line-height: 1.4;
       }
+      #hub-panel-chats {
+        display: flex;
+        flex-direction: column;
+        min-height: 440px;
+      }
+      #chats-list-view {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+      }
+      #conversations-list {
+        flex: 1;
+        overflow-y: auto;
+      }
+      .thread-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 8px;
+        flex-shrink: 0;
+      }
+      .thread-title {
+        font-size: 13.5px;
+        color: var(--text);
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .thread-log {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 8px 2px;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .msg-status {
+        font-size: 10px;
+        margin-left: 4px;
+        opacity: 0.7;
+      }
+      .msg-status.read {
+        color: #4fa8ff;
+        opacity: 1;
+      }
       .chat-msg {
         margin-bottom: 8px;
         max-width: 80%;
@@ -1450,6 +1500,14 @@
             ></path>
           </svg>
         </button>
+        <button class="hub-tab" data-tab="chats" title="Chats">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"
+            ></path>
+          </svg>
+          <span class="unread-badge" id="chats-unread-badge">0</span>
+        </button>
       </div>
 
       <div class="hub-panel" id="hub-panel-call">
@@ -1577,6 +1635,52 @@
         <p class="hub-empty" id="scheduled-empty">
           No calls scheduled yet.
         </p>
+      </div>
+
+      <div class="hub-panel" id="hub-panel-chats" style="display: none">
+        <!-- Conversation list -->
+        <div id="chats-list-view">
+          <div class="favorite-add-row">
+            <input
+              type="text"
+              id="new-chat-email"
+              placeholder="Start a chat by email"
+            />
+            <button class="ghost-btn" id="new-chat-btn">+ Chat</button>
+          </div>
+          <div id="conversations-list"></div>
+          <p class="hub-empty" id="conversations-empty">
+            No conversations yet — message anyone with an account.
+          </p>
+        </div>
+
+        <!-- Open conversation thread -->
+        <div
+          id="chat-thread-view"
+          style="display: none; flex-direction: column; height: 100%"
+        >
+          <div class="thread-header">
+            <button class="hub-icon-btn" id="thread-back-btn" title="Back">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"
+                ></path>
+              </svg>
+            </button>
+            <div class="hub-item-avatar" id="thread-avatar">?</div>
+            <div class="thread-title" id="thread-title">Conversation</div>
+          </div>
+          <div class="thread-log" id="thread-log"></div>
+          <div class="chat-input-row">
+            <input
+              type="text"
+              id="thread-input"
+              placeholder="Message"
+              autocomplete="off"
+            />
+            <button id="thread-send-btn">Send</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1816,6 +1920,10 @@
         loadRecents();
         loadFavorites();
         loadScheduledCalls();
+        loadConversations();
+
+        const pendingChatId = new URLSearchParams(window.location.search).get("chat");
+        if (pendingChatId) openConversationFromDeepLink(pendingChatId);
       }
 
       function toggleAuthMode() {
@@ -2306,9 +2414,18 @@
           .forEach((btn) =>
             btn.classList.toggle("active", btn.dataset.tab === tab),
           );
-        ["call", "recents", "favorites", "schedule"].forEach((t) => {
-          $(`hub-panel-${t}`).style.display = t === tab ? "block" : "none";
+        ["call", "recents", "favorites", "schedule", "chats"].forEach((t) => {
+          const isActive = t === tab;
+          // #hub-panel-chats is a flex column in CSS -- "block" would
+          // silently override that via inline style, the same bug that
+          // broke the sidebar layout earlier.
+          $(`hub-panel-${t}`).style.display = isActive
+            ? t === "chats"
+              ? "flex"
+              : "block"
+            : "none";
         });
+        if (tab === "chats") loadConversations();
       }
       document.querySelectorAll(".hub-tab").forEach((btn) => {
         btn.onclick = () => switchHubTab(btn.dataset.tab);
@@ -2537,6 +2654,309 @@
         const div = document.createElement("div");
         div.textContent = str == null ? "" : String(str);
         return div.innerHTML;
+      }
+
+      /* ================= Chats: persistent 1:1 messaging ================= */
+      // Unlike the in-call chat (ephemeral, over a WebRTC DataChannel, gone
+      // once the call ends), this is durable: stored in Supabase so it's
+      // there whether or not either person is online, delivered live via
+      // Supabase Realtime when they are.
+      let currentThreadConv = null; // the conversation object currently open, or null
+      let threadChannel = null; // Realtime subscription for the open thread
+      let conversationsChannel = null; // Realtime subscription for list-level updates
+
+      function wsUrlToHttp(wsUrl) {
+        return wsUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+      }
+
+      async function loadConversations() {
+        if (!currentSession) return;
+        const myId = currentSession.user.id;
+        const { data, error } = await sb
+          .from("conversations")
+          .select("*")
+          .or(`user_a_id.eq.${myId},user_b_id.eq.${myId}`)
+          .order("last_message_at", { ascending: false, nullsFirst: false });
+        if (error) {
+          console.warn("Could not load conversations:", error);
+          return;
+        }
+
+        // One query for every unread message across all my conversations,
+        // grouped client-side -- cheaper than a per-conversation count.
+        const unreadByConv = {};
+        const { data: unread } = await sb
+          .from("messages")
+          .select("conversation_id")
+          .eq("status", "sent")
+          .neq("sender_id", myId);
+        for (const row of unread || []) {
+          unreadByConv[row.conversation_id] = (unreadByConv[row.conversation_id] || 0) + 1;
+        }
+        updateChatsUnreadBadge(
+          Object.values(unreadByConv).reduce((a, b) => a + b, 0),
+        );
+
+        const list = $("conversations-list");
+        list.innerHTML = "";
+        $("conversations-empty").style.display = data.length ? "none" : "block";
+        for (const conv of data) {
+          const otherEmail = conv.user_a_id === myId ? conv.user_b_email : conv.user_a_email;
+          const unreadCountForConv = unreadByConv[conv.id] || 0;
+          const item = document.createElement("div");
+          item.className = "hub-item";
+          item.style.cursor = "pointer";
+          item.innerHTML = `
+            <div class="hub-item-avatar">${escapeHtml(initialsFor(otherEmail))}</div>
+            <div class="hub-item-body">
+              <div class="hub-item-title">${escapeHtml(otherEmail)}</div>
+              <div class="hub-item-sub">${escapeHtml(conv.last_message_preview || "No messages yet")}${conv.last_message_at ? " · " + relativeTime(conv.last_message_at) : ""}</div>
+            </div>
+            ${unreadCountForConv ? `<span class="unread-badge show" style="position: static">${unreadCountForConv}</span>` : ""}
+          `;
+          item.addEventListener("click", () => openConversationThread(conv));
+          list.appendChild(item);
+        }
+
+        subscribeToConversationList(myId);
+      }
+
+      function updateChatsUnreadBadge(count) {
+        const badge = $("chats-unread-badge");
+        badge.textContent = count;
+        badge.classList.toggle("show", count > 0);
+      }
+
+      function subscribeToConversationList(myId) {
+        if (conversationsChannel) {
+          sb.removeChannel(conversationsChannel);
+          conversationsChannel = null;
+        }
+        // Postgres-changes filters only support one simple condition, so this
+        // covers "I'm user_a"; a second identical listener (below) covers
+        // "I'm user_b" -- together every conversation involving me.
+        conversationsChannel = sb
+          .channel(`conversations-${myId}`)
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "conversations", filter: `user_a_id=eq.${myId}` },
+            () => loadConversations(),
+          )
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "conversations", filter: `user_b_id=eq.${myId}` },
+            () => loadConversations(),
+          )
+          .subscribe();
+      }
+
+      $("new-chat-btn").onclick = async () => {
+        const email = $("new-chat-email").value.trim().toLowerCase();
+        if (!email) return;
+        if (email === (currentSession.user.email || "").toLowerCase()) {
+          alert("That's your own email.");
+          return;
+        }
+        const { data: profile, error } = await sb
+          .from("profiles")
+          .select("id,email")
+          .eq("email", email)
+          .maybeSingle();
+        if (error || !profile) {
+          alert("No account found with that email.");
+          return;
+        }
+        try {
+          const conv = await getOrCreateConversation(profile.id, profile.email);
+          $("new-chat-email").value = "";
+          openConversationThread(conv);
+        } catch (e) {
+          // getOrCreateConversation already alerted
+        }
+      };
+
+      async function getOrCreateConversation(otherId, otherEmail) {
+        const myId = currentSession.user.id;
+        const myEmail = currentSession.user.email;
+        const [aId, bId, aEmail, bEmail] =
+          myId < otherId ? [myId, otherId, myEmail, otherEmail] : [otherId, myId, otherEmail, myEmail];
+        const { data: existing } = await sb
+          .from("conversations")
+          .select("*")
+          .eq("user_a_id", aId)
+          .eq("user_b_id", bId)
+          .maybeSingle();
+        if (existing) return existing;
+        const { data: created, error } = await sb
+          .from("conversations")
+          .insert({ user_a_id: aId, user_b_id: bId, user_a_email: aEmail, user_b_email: bEmail })
+          .select()
+          .single();
+        if (error) {
+          alert("Could not start that conversation: " + error.message);
+          throw error;
+        }
+        return created;
+      }
+
+      async function openConversationThread(conv) {
+        currentThreadConv = conv;
+        const myId = currentSession.user.id;
+        const otherEmail = conv.user_a_id === myId ? conv.user_b_email : conv.user_a_email;
+        $("thread-title").textContent = otherEmail;
+        $("thread-avatar").textContent = initialsFor(otherEmail);
+        $("chats-list-view").style.display = "none";
+        $("chat-thread-view").style.display = "flex";
+
+        await loadThreadMessages(conv.id);
+        await markConversationRead(conv.id);
+        subscribeToThread(conv.id);
+      }
+
+      async function loadThreadMessages(conversationId) {
+        const { data, error } = await sb
+          .from("messages")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: true });
+        const log = $("thread-log");
+        log.innerHTML = "";
+        if (error) {
+          console.warn("Could not load messages:", error);
+          return;
+        }
+        for (const m of data) renderThreadMessage(m);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function renderThreadMessage(m) {
+        const mine = m.sender_id === currentSession.user.id;
+        const wrap = document.createElement("div");
+        wrap.className = "chat-msg " + (mine ? "me" : "them");
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        bubble.textContent = m.body;
+        if (mine) {
+          const status = document.createElement("span");
+          status.className = "msg-status" + (m.status === "read" ? " read" : "");
+          status.textContent = m.status === "read" ? "✓✓" : "✓";
+          bubble.appendChild(status);
+        }
+        wrap.appendChild(bubble);
+        $("thread-log").appendChild(wrap);
+      }
+
+      // Marks every message from the *other* person in this conversation as
+      // read -- both when opening the thread, and live if a new message
+      // arrives while it's already open.
+      async function markConversationRead(conversationId) {
+        await sb
+          .from("messages")
+          .update({ status: "read" })
+          .eq("conversation_id", conversationId)
+          .neq("sender_id", currentSession.user.id)
+          .neq("status", "read");
+      }
+
+      function subscribeToThread(conversationId) {
+        if (threadChannel) {
+          sb.removeChannel(threadChannel);
+          threadChannel = null;
+        }
+        threadChannel = sb
+          .channel(`thread-${conversationId}`)
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
+            (payload) => {
+              renderThreadMessage(payload.new);
+              $("thread-log").scrollTop = $("thread-log").scrollHeight;
+              if (payload.new.sender_id !== currentSession.user.id) {
+                markConversationRead(conversationId);
+              }
+            },
+          )
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
+            () => loadThreadMessages(conversationId), // simplest way to reflect a read-receipt flip
+          )
+          .subscribe();
+      }
+
+      function closeConversationThread() {
+        if (threadChannel) {
+          sb.removeChannel(threadChannel);
+          threadChannel = null;
+        }
+        currentThreadConv = null;
+        $("chat-thread-view").style.display = "none";
+        $("chats-list-view").style.display = "flex";
+        loadConversations();
+      }
+      $("thread-back-btn").onclick = closeConversationThread;
+
+      async function sendThreadMessage() {
+        const body = $("thread-input").value.trim();
+        if (!body || !currentThreadConv) return;
+        $("thread-input").value = "";
+        const conv = currentThreadConv;
+        const myId = currentSession.user.id;
+        const myEmail = currentSession.user.email;
+
+        const { error } = await sb.from("messages").insert({
+          conversation_id: conv.id,
+          sender_id: myId,
+          sender_email: myEmail,
+          body,
+        });
+        if (error) {
+          alert("Could not send that message: " + error.message);
+          return;
+        }
+        await sb
+          .from("conversations")
+          .update({
+            last_message_at: new Date().toISOString(),
+            last_message_preview: body.slice(0, 140),
+          })
+          .eq("id", conv.id);
+
+        const otherEmail = conv.user_a_id === myId ? conv.user_b_email : conv.user_a_email;
+        const token = await getAccessToken();
+        const serverHttp = wsUrlToHttp(normalizeWsUrl(serverUrlInput.value));
+        if (serverHttp && token) {
+          fetch(`${serverHttp}/push/notify-message`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token,
+              to_email: otherEmail,
+              conversation_id: conv.id,
+              preview: body.slice(0, 120),
+            }),
+          }).catch(() => {}); // best effort -- the message itself is already safely stored either way
+        }
+      }
+      $("thread-send-btn").onclick = sendThreadMessage;
+      $("thread-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") sendThreadMessage();
+      });
+
+      // A push notification for a message deep-links to /?chat=<id> --
+      // jump straight into that conversation once signed in.
+      async function openConversationFromDeepLink(conversationId) {
+        const { data: conv, error } = await sb
+          .from("conversations")
+          .select("*")
+          .eq("id", conversationId)
+          .maybeSingle();
+        if (error || !conv) return;
+        switchHubTab("chats");
+        openConversationThread(conv);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("chat");
+        window.history.replaceState({}, "", url.pathname + url.search);
       }
 
       function setCallStatus(text, cls) {

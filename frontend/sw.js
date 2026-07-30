@@ -16,12 +16,28 @@ self.addEventListener('push', (event) => {
     payload = {};
   }
 
-  const title = payload.title || 'Incoming call';
+  const isMessage = payload.kind === 'message';
+  const title = payload.title || (isMessage ? 'New message' : 'Incoming call');
   const options = {
-    body: payload.body || 'Tap to join the call.',
-    tag: 'livecam-incoming-call', // replaces any earlier "incoming call" notification rather than stacking
-    requireInteraction: true, // stays on screen until the person acts on it, not just a few seconds
-    data: { roomCode: payload.room_code || '', from: payload.from || '' },
+    body: payload.body || (isMessage ? '' : 'Tap to join the call.'),
+    // Messages replace only the notification for that same conversation, so
+    // several different chats can each show their own; calls always replace
+    // any earlier "incoming call" notification instead of stacking.
+    tag: isMessage
+      ? `livecam-message-${payload.conversation_id || ''}`
+      : 'livecam-incoming-call',
+    requireInteraction: !isMessage, // a call stays on screen until acted on; a message behaves like a normal notification
+    // Browsers/OSes play their own default notification sound automatically
+    // here (there's no web API to use the device's actual ringtone file --
+    // that's OS-private) -- vibration is the one extra native-feeling touch
+    // we can add on top of that.
+    vibrate: isMessage ? [200] : [400, 200, 400, 200, 400, 600],
+    data: {
+      kind: payload.kind || 'call',
+      roomCode: payload.room_code || '',
+      conversationId: payload.conversation_id || '',
+      from: payload.from || '',
+    },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -29,11 +45,14 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const roomCode = (event.notification.data && event.notification.data.roomCode) || '';
-  const from = (event.notification.data && event.notification.data.from) || '';
+  const data = event.notification.data || {};
   const qs = new URLSearchParams();
-  if (roomCode) qs.set('room', roomCode);
-  if (from) qs.set('from', from);
+  if (data.kind === 'message' && data.conversationId) {
+    qs.set('chat', data.conversationId);
+  } else {
+    if (data.roomCode) qs.set('room', data.roomCode);
+    if (data.from) qs.set('from', data.from);
+  }
   const targetUrl = new URL(
     qs.toString() ? `/?${qs.toString()}` : '/',
     self.location.origin

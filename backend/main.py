@@ -333,6 +333,33 @@ def _send_one_push(subscription: dict, payload: dict) -> Optional[str]:
     return None
 
 
+async def send_message_push(to_email: str, from_email: str, conversation_id: str, preview: str) -> None:
+    if not (_vapid_key_file and VAPID_PUBLIC_KEY and VAPID_CONTACT_EMAIL):
+        return  # push isn't configured -- silently skip
+    payload = {
+        "kind": "message",
+        "title": from_email,
+        "body": preview[:120],  # keep notifications short, like every other messenger does
+        "conversation_id": conversation_id,
+        "from": from_email,
+    }
+    try:
+        rows = await get_push_subscriptions_for_email(to_email)
+    except httpx.HTTPError as e:
+        logger.warning(f"Could not fetch push subscriptions for {to_email}: {e}")
+        return
+    for row in rows:
+        expired_endpoint = await asyncio.to_thread(_send_one_push, row["subscription"], payload)
+        if expired_endpoint:
+            logger.info(f"Push subscription for {to_email} is expired/invalid -- removing it.")
+            try:
+                await delete_push_subscription(expired_endpoint)
+            except httpx.HTTPError:
+                pass
+        else:
+            logger.info(f"Sent message push to {to_email}")
+
+
 async def send_incoming_call_push(to_emails: List[str], room_code: str, caller_email: str) -> None:
     if not (_vapid_key_file and VAPID_PUBLIC_KEY and VAPID_CONTACT_EMAIL):
         return  # push isn't configured -- silently skip rather than error the call
@@ -491,6 +518,31 @@ async def push_unsubscribe(body: PushUnsubscribeBody):
     email = (user.get("email") or "").lower()
     await delete_push_subscription(body.endpoint, email=email)
     return {"status": "unsubscribed"}
+
+
+class NotifyMessageBody(BaseModel):
+    token: str
+    to_email: str
+    conversation_id: str
+    preview: str
+
+
+@app.post("/push/notify-message")
+async def push_notify_message(body: NotifyMessageBody):
+    """Called by the frontend right after it inserts a chat message into
+    Supabase, to push a notification to the recipient. The message itself
+    is written directly to Supabase (see supabase_setup.sql) -- this
+    endpoint's only job is the notification, so it needs no message content
+    beyond a short preview, and can't read or store the conversation."""
+    user = await verify_supabase_token(body.token)
+    if user is None:
+        return {"error": "invalid session"}, 401
+    from_email = (user.get("email") or "").lower()
+    to_email = (body.to_email or "").lower()
+    if not to_email or not body.conversation_id:
+        return {"error": "missing to_email or conversation_id"}, 400
+    await send_message_push(to_email, from_email, body.conversation_id, body.preview or "")
+    return {"status": "sent"}
 
 
 @app.websocket("/ws/{room_code}")

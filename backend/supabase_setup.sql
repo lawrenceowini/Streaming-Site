@@ -101,3 +101,115 @@ create policy "scheduled_calls_update_own" on scheduled_calls
   for update using (auth.uid() = user_id);
 create policy "scheduled_calls_delete_own" on scheduled_calls
   for delete using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Persistent 1:1 messaging (the "Chats" tab). Three pieces:
+--   1. profiles: lets a signed-in user look someone up by email to start a
+--      conversation, the same way WhatsApp lets you find someone by phone
+--      number. auth.users itself isn't queryable by clients, so this is a
+--      thin public mirror of just (id, email), kept in sync automatically.
+--   2. conversations: one row per 1:1 pair. The pair is stored in a fixed
+--      order (user_a_id < user_b_id) so there's exactly one conversation
+--      row per pair, never two.
+--   3. messages: the actual messages, RLS-scoped to the two participants.
+-- ---------------------------------------------------------------------------
+
+create table if not exists profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text not null unique,
+  created_at timestamptz not null default now()
+);
+alter table profiles enable row level security;
+-- Anyone signed in can look up anyone else by email (needed to start a
+-- conversation with them) -- this only ever exposes an id + email, nothing
+-- sensitive, the same information a public "find a contact" search needs.
+create policy "profiles_select_authenticated" on profiles
+  for select using (auth.role() = 'authenticated');
+
+-- Keeps profiles in sync automatically whenever someone signs up.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email)
+  values (new.id, lower(new.email))
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- One-time backfill for accounts created before this feature existed.
+insert into public.profiles (id, email)
+select id, lower(email) from auth.users
+on conflict (id) do nothing;
+
+create table if not exists conversations (
+  id uuid primary key default gen_random_uuid(),
+  user_a_id uuid not null references auth.users(id) on delete cascade,
+  user_b_id uuid not null references auth.users(id) on delete cascade,
+  user_a_email text not null,
+  user_b_email text not null,
+  last_message_at timestamptz,
+  last_message_preview text,
+  created_at timestamptz not null default now(),
+  constraint conversations_ordered_pair check (user_a_id < user_b_id),
+  constraint conversations_unique_pair unique (user_a_id, user_b_id)
+);
+alter table conversations enable row level security;
+create policy "conversations_select_participant" on conversations
+  for select using (auth.uid() = user_a_id or auth.uid() = user_b_id);
+create policy "conversations_insert_participant" on conversations
+  for insert with check (auth.uid() = user_a_id or auth.uid() = user_b_id);
+create policy "conversations_update_participant" on conversations
+  for update using (auth.uid() = user_a_id or auth.uid() = user_b_id);
+
+create table if not exists messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references conversations(id) on delete cascade,
+  sender_id uuid not null references auth.users(id) on delete cascade,
+  sender_email text not null,
+  body text not null,
+  status text not null default 'sent', -- sent | delivered | read
+  created_at timestamptz not null default now()
+);
+alter table messages enable row level security;
+create policy "messages_select_participant" on messages
+  for select using (
+    exists (
+      select 1 from conversations c
+      where c.id = messages.conversation_id
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+    )
+  );
+create policy "messages_insert_participant" on messages
+  for insert with check (
+    sender_id = auth.uid()
+    and exists (
+      select 1 from conversations c
+      where c.id = messages.conversation_id
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+    )
+  );
+-- Needed so the *recipient* (not just the sender) can mark a message as
+-- delivered/read -- an update, not an insert, and not by the sender.
+create policy "messages_update_participant" on messages
+  for update using (
+    exists (
+      select 1 from conversations c
+      where c.id = messages.conversation_id
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+    )
+  );
+
+-- Realtime delivery: Supabase broadcasts inserts/updates on these tables to
+-- any subscribed client automatically -- no custom fanout code needed on
+-- our backend, unlike the call-signaling WebSocket server.
+alter publication supabase_realtime add table messages;
+alter publication supabase_realtime add table conversations;

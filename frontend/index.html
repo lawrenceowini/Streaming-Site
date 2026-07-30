@@ -2757,21 +2757,24 @@
           alert("That's your own email.");
           return;
         }
-        const { data: profile, error } = await sb
-          .from("profiles")
-          .select("id,email")
-          .eq("email", email)
-          .maybeSingle();
-        if (error || !profile) {
-          alert("No account found with that email.");
-          return;
-        }
+        $("new-chat-btn").disabled = true;
         try {
+          const { data: profile, error } = await sb
+            .from("profiles")
+            .select("id,email")
+            .eq("email", email)
+            .maybeSingle();
+          if (error || !profile) {
+            alert("No account found with that email.");
+            return;
+          }
           const conv = await getOrCreateConversation(profile.id, profile.email);
           $("new-chat-email").value = "";
           openConversationThread(conv);
         } catch (e) {
           // getOrCreateConversation already alerted
+        } finally {
+          $("new-chat-btn").disabled = false;
         }
       };
 
@@ -2780,23 +2783,34 @@
         const myEmail = currentSession.user.email;
         const [aId, bId, aEmail, bEmail] =
           myId < otherId ? [myId, otherId, myEmail, otherEmail] : [otherId, myId, otherEmail, myEmail];
-        const { data: existing } = await sb
+
+        // Upsert instead of select-then-insert: the old check-then-insert
+        // had a race window where two near-simultaneous attempts (a
+        // double-click, or both people messaging each other for the very
+        // first time at almost the same moment) could each find nothing yet
+        // and both try to insert, tripping the unique constraint.
+        // ignoreDuplicates means "if it's already there, leave it alone" --
+        // we always re-select afterward to get the definitive row either way.
+        const { error: upsertError } = await sb.from("conversations").upsert(
+          { user_a_id: aId, user_b_id: bId, user_a_email: aEmail, user_b_email: bEmail },
+          { onConflict: "user_a_id,user_b_id", ignoreDuplicates: true },
+        );
+        if (upsertError) {
+          alert("Could not start that conversation: " + upsertError.message);
+          throw upsertError;
+        }
+
+        const { data: conv, error: selectError } = await sb
           .from("conversations")
           .select("*")
           .eq("user_a_id", aId)
           .eq("user_b_id", bId)
-          .maybeSingle();
-        if (existing) return existing;
-        const { data: created, error } = await sb
-          .from("conversations")
-          .insert({ user_a_id: aId, user_b_id: bId, user_a_email: aEmail, user_b_email: bEmail })
-          .select()
           .single();
-        if (error) {
-          alert("Could not start that conversation: " + error.message);
-          throw error;
+        if (selectError) {
+          alert("Could not load that conversation: " + selectError.message);
+          throw selectError;
         }
-        return created;
+        return conv;
       }
 
       async function openConversationThread(conv) {

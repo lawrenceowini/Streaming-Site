@@ -224,29 +224,6 @@
         text-decoration: underline;
         text-underline-offset: 2px;
       }
-      .account-bar {
-        width: 100%;
-        max-width: 500px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        background: var(--bg-panel);
-        border: 1px solid var(--line);
-        border-radius: var(--radius) var(--radius) 0 0;
-        border-bottom: none;
-        padding: 10px 16px;
-        font-size: 12px;
-        color: var(--text-dim);
-        font-family: var(--mono);
-        flex-wrap: wrap;
-      }
-      .account-identity {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
-      }
       .account-avatar {
         width: 26px;
         height: 26px;
@@ -259,15 +236,12 @@
         font-weight: 700;
         font-size: 11px;
         flex-shrink: 0;
-      }
-      .account-identity span {
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
       }
-      .account-bar strong {
-        color: var(--text);
-        font-weight: 600;
+      .account-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
       .username-edit-btn {
         width: 22px;
@@ -290,10 +264,67 @@
         color: var(--accent);
         background: var(--bg-panel-2);
       }
-      .account-actions {
+
+      /* ---------------- Profile tab ---------------- */
+      .profile-header {
         display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 6px 0 20px;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 16px;
+      }
+      .profile-avatar-wrap {
+        position: relative;
+        margin-bottom: 12px;
+      }
+      .profile-avatar-wrap .account-avatar {
+        width: 72px;
+        height: 72px;
+        font-size: 24px;
+      }
+      .avatar-edit-btn {
+        position: absolute;
+        bottom: -2px;
+        right: -2px;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #1a1200;
+        border: 2px solid var(--bg-panel);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .avatar-edit-btn svg {
+        width: 13px;
+        height: 13px;
+      }
+      .profile-name-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 15px;
+        color: var(--text);
+        font-weight: 600;
+      }
+      .profile-email {
+        font-size: 12px;
+        color: var(--text-dim);
+        font-family: var(--mono);
+        margin-top: 4px;
+      }
+      .profile-actions {
+        display: flex;
+        flex-direction: column;
         gap: 8px;
-        flex-shrink: 0;
+      }
+      .profile-actions .ghost-btn {
+        justify-content: center;
+        padding: 10px 14px;
       }
 
       /* ---------------- Calls hub: tab bar + panels ---------------- */
@@ -313,7 +344,7 @@
         flex-shrink: 0;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: 0 0 0 var(--radius);
+        border-radius: var(--radius) 0 0 var(--radius);
         border-right: none;
         padding: 10px 0;
         gap: 6px;
@@ -336,6 +367,13 @@
         width: 20px;
         height: 20px;
       }
+      .hub-tab img {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        object-fit: cover;
+        display: block;
+      }
       .hub-tab:hover {
         color: var(--text);
         background: var(--bg-panel-2);
@@ -349,7 +387,7 @@
         min-width: 0;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: 0 0 var(--radius) 0;
+        border-radius: 0 var(--radius) var(--radius) 0;
         padding: 18px 20px 20px;
       }
       #hub-panel-call {
@@ -1469,38 +1507,6 @@
     </div>
 
     <!-- Account bar: shown when signed in -->
-    <div class="account-bar" id="account-bar" style="display: none">
-      <div class="account-identity">
-        <div class="account-avatar" id="account-avatar">?</div>
-        <span>Signed in as <strong id="account-name"></strong></span>
-        <button class="username-edit-btn" id="username-edit-btn" title="Set username">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-            ></path>
-          </svg>
-        </button>
-      </div>
-      <div class="account-actions">
-        <button class="ghost-btn" id="notif-toggle">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6v-5a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"
-            ></path>
-          </svg>
-          <span>Enable call alerts</span>
-        </button>
-        <button class="ghost-btn" id="logout-btn">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M10 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h6v-2H5V5h5V3zm4.29 3.29-1.29 1.29L15.59 10H8v2h7.59l-2.59 2.42 1.29 1.29L19.58 11z"
-            ></path>
-          </svg>
-          <span>Log out</span>
-        </button>
-      </div>
-    </div>
-
     <div class="calls-hub" id="calls-hub" style="display: none">
       <div class="hub-tabs">
         <button class="hub-tab active" data-tab="call" title="Call">
@@ -1538,6 +1544,13 @@
             ></path>
           </svg>
           <span class="unread-badge" id="chats-unread-badge">0</span>
+        </button>
+        <button class="hub-tab" data-tab="profile" title="Profile" id="profile-tab-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.76-3.58-5-8-5z"
+            ></path>
+          </svg>
         </button>
       </div>
 
@@ -1725,6 +1738,56 @@
           </div>
         </div>
       </div>
+
+      <div class="hub-panel" id="hub-panel-profile" style="display: none">
+        <div class="profile-header">
+          <div class="profile-avatar-wrap">
+            <div class="account-avatar" id="account-avatar">?</div>
+            <button class="avatar-edit-btn" id="avatar-edit-btn" title="Change photo">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3zm3 15a5 5 0 1 1 5-5 5 5 0 0 1-5 5z"
+                ></path>
+              </svg>
+            </button>
+            <input
+              type="file"
+              id="avatar-file-input"
+              accept="image/*"
+              style="display: none"
+            />
+          </div>
+          <div class="profile-name-row">
+            <strong id="account-name"></strong>
+            <button class="username-edit-btn" id="username-edit-btn" title="Set username">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                ></path>
+              </svg>
+            </button>
+          </div>
+          <div class="profile-email" id="profile-email"></div>
+        </div>
+        <div class="profile-actions">
+          <button class="ghost-btn" id="notif-toggle">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6v-5a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"
+              ></path>
+            </svg>
+            <span>Enable call alerts</span>
+          </button>
+          <button class="ghost-btn" id="logout-btn">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M10 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h6v-2H5V5h5V3zm4.29 3.29-1.29 1.29L15.59 10H8v2h7.59l-2.59 2.42 1.29 1.29L19.58 11z"
+              ></path>
+            </svg>
+            <span>Log out</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Call stage -->
@@ -1897,9 +1960,10 @@
         link: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg>',
         check:
           '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"></path></svg>',
+        person:
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.76-3.58-5-8-5z"></path></svg>',
       };
       const authPanel = $("auth-panel");
-      const accountBar = $("account-bar");
       const setupPanel = $("setup-panel");
       const joinCard = $("join-card");
       const callsHub = $("calls-hub");
@@ -1939,13 +2003,11 @@
 
       function renderSignedOut() {
         authPanel.style.display = "block";
-        accountBar.style.display = "none";
         callsHub.style.display = "none";
       }
       function renderSignedIn(session) {
         currentSession = session;
         authPanel.style.display = "none";
-        accountBar.style.display = "flex";
         callsHub.style.display = "flex";
         loadMyProfile();
 
@@ -2457,7 +2519,7 @@
           .forEach((btn) =>
             btn.classList.toggle("active", btn.dataset.tab === tab),
           );
-        ["call", "recents", "favorites", "schedule", "chats"].forEach((t) => {
+        ["call", "recents", "favorites", "schedule", "chats", "profile"].forEach((t) => {
           const isActive = t === tab;
           // #hub-panel-chats is a flex column in CSS -- "block" would
           // silently override that via inline style, the same bug that
@@ -2720,8 +2782,19 @@
       function renderAccountIdentity() {
         const display = myProfile.username || myProfile.email;
         $("account-name").textContent = display;
-        $("account-avatar").textContent = initialsFor(display);
+        $("profile-email").textContent = myProfile.email;
         $("username-edit-btn").title = myProfile.username ? "Change username" : "Set username";
+
+        // The avatar shows an uploaded photo if there is one, otherwise the
+        // person's initials -- same fallback logic in both the profile
+        // panel's big circle and the sidebar tab's small icon.
+        if (myProfile.avatar_url) {
+          $("account-avatar").innerHTML = `<img src="${escapeHtml(myProfile.avatar_url)}" alt="">`;
+          $("profile-tab-btn").innerHTML = `<img src="${escapeHtml(myProfile.avatar_url)}" alt="">`;
+        } else {
+          $("account-avatar").textContent = initialsFor(display);
+          $("profile-tab-btn").innerHTML = ICONS.person;
+        }
       }
 
       $("username-edit-btn").onclick = async () => {
@@ -2755,6 +2828,54 @@
         myProfile.username = username;
         renderAccountIdentity();
       };
+
+      const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+      $("avatar-edit-btn").onclick = () => $("avatar-file-input").click();
+      $("avatar-file-input").addEventListener("change", async () => {
+        const file = $("avatar-file-input").files[0];
+        $("avatar-file-input").value = "";
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+          alert("Please choose an image file.");
+          return;
+        }
+        if (file.size > MAX_AVATAR_BYTES) {
+          alert(`That image is too large (max ${formatFileSize(MAX_AVATAR_BYTES)}).`);
+          return;
+        }
+        $("avatar-edit-btn").disabled = true;
+        try {
+          const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+          const path = `${currentSession.user.id}/avatar.${ext}`;
+          const { error: uploadError } = await sb.storage
+            .from("avatars")
+            .upload(path, file, {
+              contentType: file.type,
+              upsert: true, // replaces any previous photo instead of piling up old ones
+            });
+          if (uploadError) {
+            alert("Could not upload that photo: " + uploadError.message);
+            return;
+          }
+          const { data: pub } = sb.storage.from("avatars").getPublicUrl(path);
+          // Cache-bust so the new photo shows immediately everywhere it's
+          // already been rendered, instead of the browser reusing a cached
+          // copy from the old upload at the same URL.
+          const avatarUrl = `${pub.publicUrl}?v=${Date.now()}`;
+          const { error: updateError } = await sb
+            .from("profiles")
+            .update({ avatar_url: avatarUrl })
+            .eq("id", currentSession.user.id);
+          if (updateError) {
+            alert("Could not save that photo: " + updateError.message);
+            return;
+          }
+          myProfile.avatar_url = avatarUrl;
+          renderAccountIdentity();
+        } finally {
+          $("avatar-edit-btn").disabled = false;
+        }
+      });
 
       /* ================= Chats: persistent 1:1 messaging ================= */
       // Unlike the in-call chat (ephemeral, over a WebRTC DataChannel, gone

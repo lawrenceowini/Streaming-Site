@@ -320,3 +320,36 @@ create policy "profiles_update_own" on profiles
 -- same as the email columns already do.
 alter table conversations add column if not exists user_a_username text;
 alter table conversations add column if not exists user_b_username text;
+
+-- ---------------------------------------------------------------------------
+-- Profile pictures. Unlike chat-media (private, participants-only), these
+-- are public -- a profile picture needs to display in lots of places (the
+-- sidebar tab icon, conversation lists, thread headers) and isn't sensitive,
+-- so a plain public URL is far simpler than juggling signed URLs everywhere
+-- it's shown.
+-- ---------------------------------------------------------------------------
+
+alter table profiles add column if not exists avatar_url text;
+
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+drop policy if exists "avatars_public_read" on storage.objects;
+create policy "avatars_public_read" on storage.objects
+  for select using (bucket_id = 'avatars');
+
+-- Stored as "{user_id}/avatar.<ext>" -- these policies check the first path
+-- segment is the uploader's own id, so nobody can overwrite someone else's.
+drop policy if exists "avatars_insert_own" on storage.objects;
+create policy "avatars_insert_own" on storage.objects
+  for insert with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+drop policy if exists "avatars_update_own" on storage.objects;
+create policy "avatars_update_own" on storage.objects
+  for update using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );

@@ -1,4 +1,10 @@
--- Run this once in Supabase's SQL Editor (Project -> SQL Editor -> New query).
+-- Run this in Supabase's SQL Editor (Project -> SQL Editor -> New query).
+-- Safe to run this whole file again any time it changes -- every statement
+-- below is idempotent (tables use IF NOT EXISTS, policies are dropped and
+-- recreated, the realtime publication additions are guarded), so re-running
+-- it after adding new features elsewhere in this file won't error on the
+-- parts you already ran before.
+
 -- Stores which room codes exist, who owns each one, and which emails are
 -- allowed to join. Only the signaling server (using the service_role key)
 -- can read or write this table -- RLS is enabled with no policies, which
@@ -55,10 +61,13 @@ create table if not exists call_history (
   created_at timestamptz not null default now()
 );
 alter table call_history enable row level security;
+drop policy if exists "call_history_select_own" on call_history;
 create policy "call_history_select_own" on call_history
   for select using (auth.uid() = user_id);
+drop policy if exists "call_history_insert_own" on call_history;
 create policy "call_history_insert_own" on call_history
   for insert with check (auth.uid() = user_id);
+drop policy if exists "call_history_delete_own" on call_history;
 create policy "call_history_delete_own" on call_history
   for delete using (auth.uid() = user_id);
 
@@ -71,10 +80,13 @@ create table if not exists favorites (
   created_at timestamptz not null default now()
 );
 alter table favorites enable row level security;
+drop policy if exists "favorites_select_own" on favorites;
 create policy "favorites_select_own" on favorites
   for select using (auth.uid() = user_id);
+drop policy if exists "favorites_insert_own" on favorites;
 create policy "favorites_insert_own" on favorites
   for insert with check (auth.uid() = user_id);
+drop policy if exists "favorites_delete_own" on favorites;
 create policy "favorites_delete_own" on favorites
   for delete using (auth.uid() = user_id);
 
@@ -93,12 +105,16 @@ create table if not exists scheduled_calls (
   created_at timestamptz not null default now()
 );
 alter table scheduled_calls enable row level security;
+drop policy if exists "scheduled_calls_select_own" on scheduled_calls;
 create policy "scheduled_calls_select_own" on scheduled_calls
   for select using (auth.uid() = user_id);
+drop policy if exists "scheduled_calls_insert_own" on scheduled_calls;
 create policy "scheduled_calls_insert_own" on scheduled_calls
   for insert with check (auth.uid() = user_id);
+drop policy if exists "scheduled_calls_update_own" on scheduled_calls;
 create policy "scheduled_calls_update_own" on scheduled_calls
   for update using (auth.uid() = user_id);
+drop policy if exists "scheduled_calls_delete_own" on scheduled_calls;
 create policy "scheduled_calls_delete_own" on scheduled_calls
   for delete using (auth.uid() = user_id);
 
@@ -123,6 +139,7 @@ alter table profiles enable row level security;
 -- Anyone signed in can look up anyone else by email (needed to start a
 -- conversation with them) -- this only ever exposes an id + email, nothing
 -- sensitive, the same information a public "find a contact" search needs.
+drop policy if exists "profiles_select_authenticated" on profiles;
 create policy "profiles_select_authenticated" on profiles
   for select using (auth.role() = 'authenticated');
 
@@ -163,10 +180,13 @@ create table if not exists conversations (
   constraint conversations_unique_pair unique (user_a_id, user_b_id)
 );
 alter table conversations enable row level security;
+drop policy if exists "conversations_select_participant" on conversations;
 create policy "conversations_select_participant" on conversations
   for select using (auth.uid() = user_a_id or auth.uid() = user_b_id);
+drop policy if exists "conversations_insert_participant" on conversations;
 create policy "conversations_insert_participant" on conversations
   for insert with check (auth.uid() = user_a_id or auth.uid() = user_b_id);
+drop policy if exists "conversations_update_participant" on conversations;
 create policy "conversations_update_participant" on conversations
   for update using (auth.uid() = user_a_id or auth.uid() = user_b_id);
 
@@ -180,6 +200,7 @@ create table if not exists messages (
   created_at timestamptz not null default now()
 );
 alter table messages enable row level security;
+drop policy if exists "messages_select_participant" on messages;
 create policy "messages_select_participant" on messages
   for select using (
     exists (
@@ -188,6 +209,7 @@ create policy "messages_select_participant" on messages
         and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
     )
   );
+drop policy if exists "messages_insert_participant" on messages;
 create policy "messages_insert_participant" on messages
   for insert with check (
     sender_id = auth.uid()
@@ -199,6 +221,7 @@ create policy "messages_insert_participant" on messages
   );
 -- Needed so the *recipient* (not just the sender) can mark a message as
 -- delivered/read -- an update, not an insert, and not by the sender.
+drop policy if exists "messages_update_participant" on messages;
 create policy "messages_update_participant" on messages
   for update using (
     exists (
@@ -210,6 +233,20 @@ create policy "messages_update_participant" on messages
 
 -- Realtime delivery: Supabase broadcasts inserts/updates on these tables to
 -- any subscribed client automatically -- no custom fanout code needed on
--- our backend, unlike the call-signaling WebSocket server.
-alter publication supabase_realtime add table messages;
-alter publication supabase_realtime add table conversations;
+-- our backend, unlike the call-signaling WebSocket server. Guarded so
+-- re-running this file doesn't error if the table's already added.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table messages;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'conversations'
+  ) then
+    alter publication supabase_realtime add table conversations;
+  end if;
+end $$;

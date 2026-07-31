@@ -2559,6 +2559,22 @@
       }
 
       /* ---------------- Recents ---------------- */
+      // Batch-looks up profiles (username + photo) by email -- used to show
+      // a real name/picture in Recents and Favorites wherever the other
+      // person has an account, the same live-profile approach used for
+      // Chats, instead of the raw email that was typed at call time.
+      async function batchLookupProfilesByEmail(emails) {
+        const unique = [...new Set(emails.filter(Boolean).map((e) => e.toLowerCase()))];
+        if (!unique.length) return {};
+        const { data } = await sb
+          .from("profiles")
+          .select("email,username,avatar_url")
+          .in("email", unique);
+        const map = {};
+        for (const p of data || []) map[p.email.toLowerCase()] = p;
+        return map;
+      }
+
       async function loadRecents() {
         if (!currentSession) return;
         const { data, error } = await sb
@@ -2570,15 +2586,26 @@
           console.warn("Could not load recents:", error);
           return;
         }
+
+        // Only a plain single email is a safe profile-lookup candidate --
+        // peer_label can also be a comma-separated group, or empty.
+        const candidateEmails = data
+          .map((row) => row.peer_label)
+          .filter((label) => label && !label.includes(",") && label.includes("@"));
+        const profileMap = await batchLookupProfilesByEmail(candidateEmails);
+
         const list = $("recents-list");
         list.innerHTML = "";
         $("recents-empty").style.display = data.length ? "none" : "block";
         for (const row of data) {
-          const title = row.peer_label || row.room_code;
+          const isSingleEmail = row.peer_label && !row.peer_label.includes(",") && row.peer_label.includes("@");
+          const profile = isSingleEmail ? profileMap[row.peer_label.toLowerCase()] : null;
+          const title = (profile && profile.username) || row.peer_label || row.room_code;
+          const avatarUrl = profile && profile.avatar_url;
           const item = document.createElement("div");
           item.className = "hub-item";
           item.innerHTML = `
-            <div class="hub-item-avatar">${initialsFor(title)}</div>
+            <div class="hub-item-avatar">${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="">` : escapeHtml(initialsFor(title))}</div>
             <div class="hub-item-body">
               <div class="hub-item-title">${escapeHtml(title)}</div>
               <div class="hub-item-sub">${relativeTime(row.created_at)} · ${escapeHtml(row.room_code)}</div>
@@ -2611,17 +2638,27 @@
           console.warn("Could not load favorites:", error);
           return;
         }
+
+        const profileMap = await batchLookupProfilesByEmail(data.map((row) => row.target_email));
+
         const list = $("favorites-list");
         list.innerHTML = "";
         $("favorites-empty").style.display = data.length ? "none" : "block";
         for (const row of data) {
+          const profile = profileMap[row.target_email.toLowerCase()];
+          // The label stays as-is -- it's the nickname *you* chose for this
+          // contact, same as a saved contact name in any messenger. The
+          // subtitle and avatar are what upgrade to the real thing once
+          // that person has an account to look up.
+          const subtitle = (profile && profile.username) || row.target_email;
+          const avatarUrl = profile && profile.avatar_url;
           const item = document.createElement("div");
           item.className = "hub-item";
           item.innerHTML = `
-            <div class="hub-item-avatar">${initialsFor(row.label)}</div>
+            <div class="hub-item-avatar">${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="">` : escapeHtml(initialsFor(row.label))}</div>
             <div class="hub-item-body">
               <div class="hub-item-title">${escapeHtml(row.label)}</div>
-              <div class="hub-item-sub">${escapeHtml(row.target_email)}</div>
+              <div class="hub-item-sub">${escapeHtml(subtitle)}</div>
             </div>
             <div class="hub-item-actions">
               <button class="hub-icon-btn call" title="Call">${ICONS.phone}</button>

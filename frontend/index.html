@@ -1348,6 +1348,9 @@
         margin-left: 4px;
         opacity: 0.7;
       }
+      .msg-status.delivered {
+        opacity: 0.9;
+      }
       .msg-status.read {
         color: #4fa8ff;
         opacity: 1;
@@ -3196,6 +3199,13 @@
       async function loadConversations() {
         if (!currentSession) return;
         const myId = currentSession.user.id;
+
+        // Anything still marked "sent" that I didn't send myself has, by
+        // definition, now reached my device the moment this loads -- covers
+        // messages that arrived while I was offline and so never got the
+        // live delivery update from subscribeToConversationList.
+        sb.from("messages").update({ status: "delivered" }).eq("status", "sent").neq("sender_id", myId);
+
         const { data, error } = await sb
           .from("conversations")
           .select("*")
@@ -3291,6 +3301,24 @@
             "postgres_changes",
             { event: "*", schema: "public", table: "conversations", filter: `user_b_id=eq.${myId}` },
             () => loadConversations(),
+          )
+          // No filter needed here -- RLS already limits which INSERTs this
+          // client even receives to messages in conversations I'm part of.
+          // The instant one of those arrives from someone else, it's
+          // reached my device, which is exactly what "delivered" means --
+          // distinct from "read", which only happens once I actually open
+          // that specific thread (see markConversationRead).
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "messages" },
+            (payload) => {
+              if (payload.new.sender_id !== myId && payload.new.status === "sent") {
+                sb.from("messages")
+                  .update({ status: "delivered" })
+                  .eq("id", payload.new.id)
+                  .eq("status", "sent");
+              }
+            },
           )
           .subscribe();
       }
@@ -3495,8 +3523,16 @@
 
         if (mine) {
           const status = document.createElement("span");
-          status.className = "msg-status" + (m.status === "read" ? " read" : "");
-          status.textContent = m.status === "read" ? "✓✓" : "✓";
+          if (m.status === "read") {
+            status.className = "msg-status read";
+            status.textContent = "✓✓";
+          } else if (m.status === "delivered") {
+            status.className = "msg-status delivered";
+            status.textContent = "✓✓";
+          } else {
+            status.className = "msg-status";
+            status.textContent = "✓";
+          }
           bubble.appendChild(status);
         }
         wrap.appendChild(bubble);

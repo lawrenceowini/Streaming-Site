@@ -360,6 +360,35 @@ async def send_message_push(to_email: str, from_display: str, conversation_id: s
             logger.info(f"Sent message push to {to_email}")
 
 
+async def send_group_message_push(
+    to_email: str, from_display: str, group_id: str, group_name: str, preview: str
+) -> None:
+    if not (_vapid_key_file and VAPID_PUBLIC_KEY and VAPID_CONTACT_EMAIL):
+        return  # push isn't configured -- silently skip
+    payload = {
+        "kind": "group_message",
+        "title": f"{group_name}",
+        "body": f"{from_display}: {preview[:100]}",
+        "group_id": group_id,
+        "from": from_display,
+    }
+    try:
+        rows = await get_push_subscriptions_for_email(to_email)
+    except httpx.HTTPError as e:
+        logger.warning(f"Could not fetch push subscriptions for {to_email}: {e}")
+        return
+    for row in rows:
+        expired_endpoint = await asyncio.to_thread(_send_one_push, row["subscription"], payload)
+        if expired_endpoint:
+            logger.info(f"Push subscription for {to_email} is expired/invalid -- removing it.")
+            try:
+                await delete_push_subscription(expired_endpoint)
+            except httpx.HTTPError:
+                pass
+        else:
+            logger.info(f"Sent group-message push to {to_email}")
+
+
 async def send_incoming_call_push(to_emails: List[str], room_code: str, caller_email: str) -> None:
     if not (_vapid_key_file and VAPID_PUBLIC_KEY and VAPID_CONTACT_EMAIL):
         return  # push isn't configured -- silently skip rather than error the call
@@ -544,6 +573,35 @@ async def push_notify_message(body: NotifyMessageBody):
     if not to_email or not body.conversation_id:
         return {"error": "missing to_email or conversation_id"}, 400
     await send_message_push(to_email, from_display, body.conversation_id, body.preview or "")
+    return {"status": "sent"}
+
+
+class NotifyGroupMessageBody(BaseModel):
+    token: str
+    to_emails: List[str]
+    group_id: str
+    group_name: str
+    preview: str
+    from_display: Optional[str] = None
+
+
+@app.post("/push/notify-group-message")
+async def push_notify_group_message(body: NotifyGroupMessageBody):
+    """Same idea as /push/notify-message, but fans out to every other member
+    of the group at once."""
+    user = await verify_supabase_token(body.token)
+    if user is None:
+        return {"error": "invalid session"}, 401
+    from_email = (user.get("email") or "").lower()
+    from_display = body.from_display or from_email
+    if not body.group_id or not body.to_emails:
+        return {"error": "missing group_id or to_emails"}, 400
+    for to_email in body.to_emails:
+        if (to_email or "").lower() == from_email:
+            continue  # never push to yourself
+        await send_group_message_push(
+            (to_email or "").lower(), from_display, body.group_id, body.group_name or "Group", body.preview or ""
+        )
     return {"status": "sent"}
 
 

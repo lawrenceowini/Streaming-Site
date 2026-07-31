@@ -27,11 +27,11 @@ self.addEventListener('push', (event) => {
   } catch (e) {
     payload = {};
   }
-  const isMessage = payload.kind === 'message';
+  const isCall = payload.kind !== 'message' && payload.kind !== 'group_message';
 
   event.waitUntil(
     (async () => {
-      if (!isMessage) {
+      if (isCall) {
         const windowClients = await self.clients.matchAll({
           type: 'window',
           includeUncontrolled: true,
@@ -47,25 +47,29 @@ self.addEventListener('push', (event) => {
         }
       }
 
-      const title = payload.title || (isMessage ? 'New message' : 'Incoming call');
+      const title = payload.title || (isCall ? 'Incoming call' : 'New message');
       const options = {
-        body: payload.body || (isMessage ? '' : 'Tap to join the call.'),
-        // Messages replace only the notification for that same conversation, so
-        // several different chats can each show their own; calls always replace
-        // any earlier "incoming call" notification instead of stacking.
-        tag: isMessage
-          ? `livecam-message-${payload.conversation_id || ''}`
-          : 'livecam-incoming-call',
-        requireInteraction: !isMessage, // a call stays on screen until acted on; a message behaves like a normal notification
+        body: payload.body || (isCall ? 'Tap to join the call.' : ''),
+        // Messages replace only the notification for that same conversation/
+        // group, so several different chats can each show their own; calls
+        // always replace any earlier "incoming call" notification instead
+        // of stacking.
+        tag: isCall
+          ? 'livecam-incoming-call'
+          : payload.kind === 'group_message'
+            ? `livecam-group-${payload.group_id || ''}`
+            : `livecam-message-${payload.conversation_id || ''}`,
+        requireInteraction: isCall, // a call stays on screen until acted on; a message behaves like a normal notification
         // Browsers/OSes play their own default notification sound automatically
         // here (there's no web API to use the device's actual ringtone file --
         // that's OS-private) -- vibration is the one extra native-feeling touch
         // we can add on top of that.
-        vibrate: isMessage ? [200] : [400, 200, 400, 200, 400, 600],
+        vibrate: isCall ? [400, 200, 400, 200, 400, 600] : [200],
         data: {
           kind: payload.kind || 'call',
           roomCode: payload.room_code || '',
           conversationId: payload.conversation_id || '',
+          groupId: payload.group_id || '',
           from: payload.from || '',
         },
       };
@@ -80,6 +84,8 @@ self.addEventListener('notificationclick', (event) => {
   const qs = new URLSearchParams();
   if (data.kind === 'message' && data.conversationId) {
     qs.set('chat', data.conversationId);
+  } else if (data.kind === 'group_message' && data.groupId) {
+    qs.set('group', data.groupId);
   } else {
     if (data.roomCode) qs.set('room', data.roomCode);
     if (data.from) qs.set('from', data.from);

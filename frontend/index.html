@@ -1303,6 +1303,21 @@
         flex: 1;
         overflow-y: auto;
       }
+      #hub-panel-groups {
+        display: flex;
+        flex-direction: column;
+        min-height: 440px;
+      }
+      #groups-list-view {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+      }
+      #groups-list {
+        flex: 1;
+        overflow-y: auto;
+      }
       .thread-header {
         display: flex;
         align-items: center;
@@ -1336,6 +1351,17 @@
       .msg-status.read {
         color: #4fa8ff;
         opacity: 1;
+      }
+      .msg-sender {
+        font-size: 10.5px;
+        color: var(--accent);
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+      .msg-seen {
+        font-size: 10px;
+        color: var(--text-dim);
+        margin-left: 4px;
       }
       .chat-msg {
         margin-bottom: 8px;
@@ -1669,6 +1695,14 @@
           </svg>
           <span class="unread-badge" id="chats-unread-badge">0</span>
         </button>
+        <button class="hub-tab" data-tab="groups" title="Groups">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+            ></path>
+          </svg>
+          <span class="unread-badge" id="groups-unread-badge">0</span>
+        </button>
         <button class="hub-tab" data-tab="profile" title="Profile" id="profile-tab-btn">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
@@ -1859,6 +1893,75 @@
               autocomplete="off"
             />
             <button id="thread-send-btn">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hub-panel" id="hub-panel-groups" style="display: none">
+        <!-- Groups list -->
+        <div id="groups-list-view">
+          <div class="favorite-add-row">
+            <input type="text" id="new-group-name" placeholder="Group name" />
+          </div>
+          <div class="favorite-add-row">
+            <input
+              type="text"
+              id="new-group-members"
+              placeholder="Members (usernames, comma-separated)"
+            />
+            <button class="ghost-btn" id="new-group-btn">+ Group</button>
+          </div>
+          <div id="groups-list"></div>
+          <p class="hub-empty" id="groups-empty">
+            No groups yet — create one above.
+          </p>
+        </div>
+
+        <!-- Open group thread -->
+        <div
+          id="group-thread-view"
+          style="display: none; flex-direction: column; height: 100%"
+        >
+          <div class="thread-header">
+            <button class="hub-icon-btn" id="group-back-btn" title="Back">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"
+                ></path>
+              </svg>
+            </button>
+            <div class="hub-item-avatar" id="group-thread-avatar">?</div>
+            <div class="thread-title" id="group-thread-title">Group</div>
+            <button
+              class="hub-icon-btn"
+              id="group-members-btn"
+              title="Members"
+              style="margin-left: auto"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                ></path>
+              </svg>
+            </button>
+          </div>
+          <div class="thread-log" id="group-thread-log"></div>
+          <div class="chat-input-row">
+            <button id="group-attach" title="Send a photo or file">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6z"
+                ></path>
+              </svg>
+            </button>
+            <input type="file" id="group-file-input" style="display: none" />
+            <input
+              type="text"
+              id="group-thread-input"
+              placeholder="Message"
+              autocomplete="off"
+            />
+            <button id="group-thread-send-btn">Send</button>
           </div>
         </div>
       </div>
@@ -2150,9 +2253,13 @@
         loadFavorites();
         loadScheduledCalls();
         loadConversations();
+        loadGroups();
 
-        const pendingChatId = new URLSearchParams(window.location.search).get("chat");
+        const params = new URLSearchParams(window.location.search);
+        const pendingChatId = params.get("chat");
         if (pendingChatId) openConversationFromDeepLink(pendingChatId);
+        const pendingGroupId = params.get("group");
+        if (pendingGroupId) openGroupFromDeepLink(pendingGroupId);
       }
 
       function toggleAuthMode() {
@@ -2677,18 +2784,19 @@
           .forEach((btn) =>
             btn.classList.toggle("active", btn.dataset.tab === tab),
           );
-        ["call", "recents", "favorites", "schedule", "chats", "profile"].forEach((t) => {
+        ["call", "recents", "favorites", "schedule", "chats", "groups", "profile"].forEach((t) => {
           const isActive = t === tab;
-          // #hub-panel-chats is a flex column in CSS -- "block" would
-          // silently override that via inline style, the same bug that
-          // broke the sidebar layout earlier.
+          // #hub-panel-chats and #hub-panel-groups are flex columns in CSS
+          // -- "block" would silently override that via inline style, the
+          // same bug that broke the sidebar layout earlier.
           $(`hub-panel-${t}`).style.display = isActive
-            ? t === "chats"
+            ? t === "chats" || t === "groups"
               ? "flex"
               : "block"
             : "none";
         });
         if (tab === "chats") loadConversations();
+        if (tab === "groups") loadGroups();
       }
       document.querySelectorAll(".hub-tab").forEach((btn) => {
         btn.onclick = () => switchHubTab(btn.dataset.tab);
@@ -3559,6 +3667,497 @@
         openConversationThread(conv);
         const url = new URL(window.location.href);
         url.searchParams.delete("chat");
+        window.history.replaceState({}, "", url.pathname + url.search);
+      }
+
+      /* ================= Groups: multi-person conversations =================
+   A deliberately separate system from 1:1 Chats -- groups have an
+   open-ended member list rather than a fixed pair, and read receipts are
+   per-member rather than a single "them" side, so both the data model and
+   the rendering differ enough that sharing code with 1:1 chat would mean
+   more branching than reuse. */
+      let currentGroupThread = null;
+      let groupThreadChannel = null;
+      let groupsListChannel = null;
+
+      async function loadGroups() {
+        if (!currentSession) return;
+        const myId = currentSession.user.id;
+        const { data: memberships, error } = await sb
+          .from("group_members")
+          .select("group_id")
+          .eq("user_id", myId);
+        if (error) {
+          console.warn("Could not load groups:", error);
+          return;
+        }
+        const groupIds = (memberships || []).map((m) => m.group_id);
+
+        const list = $("groups-list");
+        list.innerHTML = "";
+        if (!groupIds.length) {
+          $("groups-empty").style.display = "block";
+          updateGroupsUnreadBadge(0);
+          subscribeToGroupsList(myId);
+          return;
+        }
+        $("groups-empty").style.display = "none";
+
+        const { data: groups } = await sb.from("groups").select("*").in("id", groupIds);
+
+        // Last message + unread count per group, computed from a couple of
+        // batched queries rather than one round-trip per group.
+        const { data: lastMessages } = await sb
+          .from("group_messages")
+          .select("group_id,body,media_path,media_mime,sender_email,created_at")
+          .in("group_id", groupIds)
+          .order("created_at", { ascending: false });
+        const lastByGroup = {};
+        for (const m of lastMessages || []) {
+          if (!lastByGroup[m.group_id]) lastByGroup[m.group_id] = m; // first hit per group is the newest, already ordered desc
+        }
+
+        const { data: readRows } = await sb
+          .from("group_message_reads")
+          .select("message_id")
+          .eq("user_id", myId);
+        const readSet = new Set((readRows || []).map((r) => r.message_id));
+        const { data: unreadCandidates } = await sb
+          .from("group_messages")
+          .select("id,group_id")
+          .in("group_id", groupIds)
+          .neq("sender_id", myId);
+        const unreadByGroup = {};
+        for (const m of unreadCandidates || []) {
+          if (!readSet.has(m.id)) unreadByGroup[m.group_id] = (unreadByGroup[m.group_id] || 0) + 1;
+        }
+        updateGroupsUnreadBadge(Object.values(unreadByGroup).reduce((a, b) => a + b, 0));
+
+        (groups || []).sort((a, b) => {
+          const aTime = lastByGroup[a.id] ? new Date(lastByGroup[a.id].created_at).getTime() : 0;
+          const bTime = lastByGroup[b.id] ? new Date(lastByGroup[b.id].created_at).getTime() : 0;
+          return bTime - aTime;
+        });
+
+        for (const group of groups || []) {
+          const last = lastByGroup[group.id];
+          let preview = "No messages yet";
+          if (last) {
+            preview = last.media_path
+              ? `${last.sender_email}: ${last.media_mime && last.media_mime.startsWith("image/") ? "📷 Photo" : "📎 File"}`
+              : last.body
+                ? `${last.sender_email}: ${last.body}`
+                : "No messages yet";
+          }
+          const unreadCount = unreadByGroup[group.id] || 0;
+          const item = document.createElement("div");
+          item.className = "hub-item";
+          item.style.cursor = "pointer";
+          item.innerHTML = `
+            <div class="hub-item-avatar">${group.avatar_url ? `<img src="${escapeHtml(group.avatar_url)}" alt="">` : escapeHtml(initialsFor(group.name))}</div>
+            <div class="hub-item-body">
+              <div class="hub-item-title">${escapeHtml(group.name)}</div>
+              <div class="hub-item-sub">${escapeHtml(preview)}${last ? " · " + relativeTime(last.created_at) : ""}</div>
+            </div>
+            ${unreadCount ? `<span class="unread-badge show" style="position: static">${unreadCount}</span>` : ""}
+          `;
+          item.addEventListener("click", () => openGroupThread(group));
+          list.appendChild(item);
+        }
+
+        subscribeToGroupsList(myId);
+      }
+
+      function updateGroupsUnreadBadge(count) {
+        const badge = $("groups-unread-badge");
+        badge.textContent = count;
+        badge.classList.toggle("show", count > 0);
+      }
+
+      function subscribeToGroupsList(myId) {
+        if (groupsListChannel) {
+          sb.removeChannel(groupsListChannel);
+          groupsListChannel = null;
+        }
+        groupsListChannel = sb
+          .channel(`groups-list-${myId}`)
+          .on("postgres_changes", { event: "*", schema: "public", table: "group_messages" }, () =>
+            loadGroups(),
+          )
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "group_members", filter: `user_id=eq.${myId}` },
+            () => loadGroups(),
+          )
+          .subscribe();
+      }
+
+      $("new-group-btn").onclick = async () => {
+        const name = $("new-group-name").value.trim();
+        const membersRaw = $("new-group-members").value.trim();
+        if (!name) {
+          alert("Please give the group a name.");
+          return;
+        }
+        const usernames = membersRaw
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (!usernames.length) {
+          alert("Add at least one member by username.");
+          return;
+        }
+
+        $("new-group-btn").disabled = true;
+        try {
+          const myId = currentSession.user.id;
+          const { data: group, error: groupError } = await sb
+            .from("groups")
+            .insert({ name, created_by: myId })
+            .select()
+            .single();
+          if (groupError) {
+            alert("Could not create group: " + groupError.message);
+            return;
+          }
+
+          // Look up each username -> id, skipping ones that don't resolve
+          // (told to the person afterward) rather than failing the whole group.
+          const notFound = [];
+          const memberIds = new Set([myId]);
+          for (const uname of usernames) {
+            const { data: profile } = await sb
+              .from("profiles")
+              .select("id")
+              .ilike("username", uname)
+              .maybeSingle();
+            if (profile) memberIds.add(profile.id);
+            else notFound.push(uname);
+          }
+          const rows = [...memberIds].map((id) => ({ group_id: group.id, user_id: id }));
+          const { error: memberError } = await sb.from("group_members").insert(rows);
+          if (memberError) {
+            alert("Group created, but could not add members: " + memberError.message);
+          }
+          if (notFound.length) {
+            alert(`Could not find these usernames, so they weren't added: ${notFound.join(", ")}`);
+          }
+
+          $("new-group-name").value = "";
+          $("new-group-members").value = "";
+          openGroupThread(group);
+        } finally {
+          $("new-group-btn").disabled = false;
+        }
+      };
+
+      async function openGroupThread(group) {
+        currentGroupThread = group;
+        $("group-thread-title").textContent = group.name;
+        if (group.avatar_url) {
+          $("group-thread-avatar").innerHTML = `<img src="${escapeHtml(group.avatar_url)}" alt="">`;
+        } else {
+          $("group-thread-avatar").textContent = initialsFor(group.name);
+        }
+        $("groups-list-view").style.display = "none";
+        $("group-thread-view").style.display = "flex";
+
+        await loadGroupMessages(group.id);
+        await markGroupMessagesRead(group.id);
+        subscribeToGroupThread(group.id);
+      }
+
+      async function loadGroupMessages(groupId) {
+        const { data, error } = await sb
+          .from("group_messages")
+          .select("*")
+          .eq("group_id", groupId)
+          .order("created_at", { ascending: true });
+        const log = $("group-thread-log");
+        log.innerHTML = "";
+        if (error) {
+          console.warn("Could not load group messages:", error);
+          return;
+        }
+        for (const m of data) await renderGroupMessage(m);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      async function countGroupMessageReads(messageId) {
+        const { count } = await sb
+          .from("group_message_reads")
+          .select("*", { count: "exact", head: true })
+          .eq("message_id", messageId);
+        return count || 0;
+      }
+
+      async function renderGroupMessage(m) {
+        const mine = m.sender_id === currentSession.user.id;
+        const wrap = document.createElement("div");
+        wrap.className = "chat-msg " + (mine ? "me" : "them");
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+
+        if (!mine) {
+          const sender = document.createElement("div");
+          sender.className = "msg-sender";
+          sender.textContent = m.sender_email;
+          bubble.appendChild(sender);
+        }
+
+        if (m.media_path) {
+          const url = await signedMediaUrl(m.media_path);
+          const isImage = m.media_mime && m.media_mime.startsWith("image/");
+          if (isImage && url) {
+            const link = document.createElement("a");
+            link.href = url;
+            link.target = "_blank";
+            link.rel = "noopener";
+            const img = document.createElement("img");
+            img.className = "file-thumb";
+            img.style.width = "160px";
+            img.style.height = "auto";
+            img.style.borderRadius = "8px";
+            img.src = url;
+            link.appendChild(img);
+            bubble.appendChild(link);
+          } else {
+            const fileBubble = document.createElement("div");
+            fileBubble.className = "file-bubble";
+            const icon = document.createElement("div");
+            icon.className = "file-icon";
+            icon.textContent = fileIconFor(m.media_mime);
+            const info = document.createElement("div");
+            info.className = "file-info";
+            info.innerHTML = `<div class="file-name">${escapeHtml(m.media_name || "File")}</div><div class="file-status">${m.media_size ? formatFileSize(m.media_size) : ""}</div>`;
+            fileBubble.appendChild(icon);
+            fileBubble.appendChild(info);
+            if (url) {
+              const dl = document.createElement("a");
+              dl.className = "file-download ready";
+              dl.href = url;
+              dl.download = m.media_name || "file";
+              dl.target = "_blank";
+              dl.rel = "noopener";
+              dl.innerHTML = ICONS.link;
+              fileBubble.appendChild(dl);
+            }
+            bubble.appendChild(fileBubble);
+          }
+          if (m.body) {
+            const caption = document.createElement("div");
+            caption.style.marginTop = "6px";
+            caption.textContent = m.body;
+            bubble.appendChild(caption);
+          }
+        } else {
+          bubble.appendChild(document.createTextNode(m.body));
+        }
+
+        if (mine) {
+          // Groups don't have a single "other side" the way a 1:1 chat
+          // does, so rather than a full per-person read list (a lot of UI
+          // for not much benefit at this scale), this shows a simple
+          // "Seen by N" count once at least one other member has read it.
+          const seenCount = await countGroupMessageReads(m.id);
+          if (seenCount > 0) {
+            const seen = document.createElement("span");
+            seen.className = "msg-seen";
+            seen.textContent = `Seen by ${seenCount}`;
+            bubble.appendChild(seen);
+          }
+        }
+        wrap.appendChild(bubble);
+        $("group-thread-log").appendChild(wrap);
+      }
+
+      async function markGroupMessagesRead(groupId) {
+        const myId = currentSession.user.id;
+        const { data: messages } = await sb
+          .from("group_messages")
+          .select("id")
+          .eq("group_id", groupId)
+          .neq("sender_id", myId);
+        if (!messages || !messages.length) return;
+        const rows = messages.map((m) => ({ message_id: m.id, user_id: myId }));
+        await sb
+          .from("group_message_reads")
+          .upsert(rows, { onConflict: "message_id,user_id", ignoreDuplicates: true });
+      }
+
+      function subscribeToGroupThread(groupId) {
+        if (groupThreadChannel) {
+          sb.removeChannel(groupThreadChannel);
+          groupThreadChannel = null;
+        }
+        groupThreadChannel = sb
+          .channel(`group-thread-${groupId}`)
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "group_messages", filter: `group_id=eq.${groupId}` },
+            async (payload) => {
+              await renderGroupMessage(payload.new);
+              $("group-thread-log").scrollTop = $("group-thread-log").scrollHeight;
+              if (payload.new.sender_id !== currentSession.user.id) {
+                markGroupMessagesRead(groupId);
+              }
+            },
+          )
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "group_message_reads" },
+            () => loadGroupMessages(groupId), // simplest way to refresh "Seen by N" counts live
+          )
+          .subscribe();
+      }
+
+      function closeGroupThread() {
+        if (groupThreadChannel) {
+          sb.removeChannel(groupThreadChannel);
+          groupThreadChannel = null;
+        }
+        currentGroupThread = null;
+        $("group-thread-view").style.display = "none";
+        $("groups-list-view").style.display = "flex";
+        loadGroups();
+      }
+      $("group-back-btn").onclick = closeGroupThread;
+
+      async function finishSendingGroupMessage(group, previewText) {
+        const myId = currentSession.user.id;
+        const { data: members } = await sb
+          .from("group_members")
+          .select("user_id")
+          .eq("group_id", group.id)
+          .neq("user_id", myId);
+        if (!members || !members.length) return;
+        const memberIds = members.map((m) => m.user_id);
+        const { data: profiles } = await sb.from("profiles").select("id,email").in("id", memberIds);
+        const toEmails = (profiles || []).map((p) => p.email).filter(Boolean);
+        if (!toEmails.length) return;
+
+        const token = await getAccessToken();
+        const serverHttp = wsUrlToHttp(normalizeWsUrl(serverUrlInput.value));
+        if (serverHttp && token) {
+          fetch(`${serverHttp}/push/notify-group-message`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token,
+              to_emails: toEmails,
+              group_id: group.id,
+              group_name: group.name,
+              preview: previewText.slice(0, 100),
+              from_display: (myProfile && myProfile.username) || currentSession.user.email,
+            }),
+          }).catch(() => {});
+        }
+      }
+
+      async function sendGroupThreadMessage() {
+        const body = $("group-thread-input").value.trim();
+        if (!body || !currentGroupThread) return;
+        $("group-thread-input").value = "";
+        const group = currentGroupThread;
+        const myId = currentSession.user.id;
+        const myEmail = currentSession.user.email;
+
+        const { error } = await sb.from("group_messages").insert({
+          group_id: group.id,
+          sender_id: myId,
+          sender_email: myEmail,
+          body,
+        });
+        if (error) {
+          alert("Could not send that message: " + error.message);
+          return;
+        }
+        await finishSendingGroupMessage(group, body);
+      }
+      $("group-thread-send-btn").onclick = sendGroupThreadMessage;
+      $("group-thread-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") sendGroupThreadMessage();
+      });
+
+      $("group-attach").onclick = () => $("group-file-input").click();
+      $("group-file-input").addEventListener("change", async () => {
+        const file = $("group-file-input").files[0];
+        $("group-file-input").value = "";
+        if (!file || !currentGroupThread) return;
+        if (file.size > MAX_CHAT_MEDIA_BYTES) {
+          alert(`That file is too large to send (max ${formatFileSize(MAX_CHAT_MEDIA_BYTES)}).`);
+          return;
+        }
+        const group = currentGroupThread;
+        const myId = currentSession.user.id;
+        const myEmail = currentSession.user.email;
+
+        $("group-attach").disabled = true;
+        try {
+          const path = `group-${group.id}/${crypto.randomUUID()}-${file.name}`;
+          const { error: uploadError } = await sb.storage
+            .from("chat-media")
+            .upload(path, file, { contentType: file.type || "application/octet-stream" });
+          if (uploadError) {
+            alert("Could not send that file: " + uploadError.message);
+            return;
+          }
+          const { error: insertError } = await sb.from("group_messages").insert({
+            group_id: group.id,
+            sender_id: myId,
+            sender_email: myEmail,
+            body: "",
+            media_path: path,
+            media_mime: file.type || "application/octet-stream",
+            media_name: file.name,
+            media_size: file.size,
+          });
+          if (insertError) {
+            alert("Could not send that file: " + insertError.message);
+            return;
+          }
+          const isImage = file.type && file.type.startsWith("image/");
+          await finishSendingGroupMessage(group, isImage ? "📷 Photo" : `📎 ${file.name}`);
+        } finally {
+          $("group-attach").disabled = false;
+        }
+      });
+
+      $("group-members-btn").onclick = async () => {
+        if (!currentGroupThread) return;
+        const group = currentGroupThread;
+        const { data: members } = await sb.from("group_members").select("user_id").eq("group_id", group.id);
+        const ids = (members || []).map((m) => m.user_id);
+        const { data: profiles } = await sb.from("profiles").select("username,email").in("id", ids);
+        const names = (profiles || []).map((p) => p.username || p.email).join("\n");
+        const addMore = confirm(`Members:\n${names}\n\nAdd someone new?`);
+        if (!addMore) return;
+        const uname = prompt("Username to add:");
+        if (!uname) return;
+        const { data: profile } = await sb
+          .from("profiles")
+          .select("id")
+          .ilike("username", uname.trim())
+          .maybeSingle();
+        if (!profile) {
+          alert("No account found with that username.");
+          return;
+        }
+        const { error } = await sb.from("group_members").insert({ group_id: group.id, user_id: profile.id });
+        if (error) {
+          alert("Could not add that member: " + error.message);
+          return;
+        }
+        alert(`Added ${uname}.`);
+      };
+
+      async function openGroupFromDeepLink(groupId) {
+        const { data: group, error } = await sb.from("groups").select("*").eq("id", groupId).maybeSingle();
+        if (error || !group) return;
+        switchHubTab("groups");
+        openGroupThread(group);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("group");
         window.history.replaceState({}, "", url.pathname + url.search);
       }
 

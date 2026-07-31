@@ -353,3 +353,178 @@ create policy "avatars_update_own" on storage.objects
     bucket_id = 'avatars'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- ---------------------------------------------------------------------------
+-- Group conversations. A deliberately separate structure from the 1:1
+-- conversations/messages tables above -- a group has an open-ended number
+-- of members, which doesn't fit the "exactly two people, one fixed pair"
+-- shape those tables were built around. Three pieces:
+--   1. groups: one row per group (name, optional photo, who created it).
+--   2. group_members: who's in each group.
+--   3. group_messages: the messages themselves, with per-member read
+--      tracking in group_message_reads (each member reads independently,
+--      unlike a 1:1 chat where there's only ever one "other side").
+-- ---------------------------------------------------------------------------
+
+create table if not exists groups (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  avatar_url text,
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table groups enable row level security;
+drop policy if exists "groups_select_member" on groups;
+create policy "groups_select_member" on groups
+  for select using (
+    exists (
+      select 1 from group_members gm
+      where gm.group_id = groups.id and gm.user_id = auth.uid()
+    )
+  );
+drop policy if exists "groups_insert_any_authenticated" on groups;
+create policy "groups_insert_any_authenticated" on groups
+  for insert with check (auth.uid() = created_by);
+drop policy if exists "groups_update_member" on groups;
+create policy "groups_update_member" on groups
+  for update using (
+    exists (
+      select 1 from group_members gm
+      where gm.group_id = groups.id and gm.user_id = auth.uid()
+    )
+  );
+
+create table if not exists group_members (
+  group_id uuid not null references groups(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (group_id, user_id)
+);
+alter table group_members enable row level security;
+drop policy if exists "group_members_select_member" on group_members;
+create policy "group_members_select_member" on group_members
+  for select using (
+    exists (
+      select 1 from group_members gm
+      where gm.group_id = group_members.group_id and gm.user_id = auth.uid()
+    )
+  );
+-- Three ways a row can legitimately be inserted here: you're adding
+-- yourself (accepting membership), you're the group's creator adding its
+-- very first members (before any members exist yet -- a plain "is an
+-- existing member" check can't pass at that moment), or you're an existing
+-- member adding someone new later.
+drop policy if exists "group_members_insert" on group_members;
+create policy "group_members_insert" on group_members
+  for insert with check (
+    auth.uid() = user_id
+    or exists (select 1 from groups g where g.id = group_id and g.created_by = auth.uid())
+    or exists (
+      select 1 from group_members gm
+      where gm.group_id = group_members.group_id and gm.user_id = auth.uid()
+    )
+  );
+drop policy if exists "group_members_delete_self" on group_members;
+create policy "group_members_delete_self" on group_members
+  for delete using (auth.uid() = user_id); -- leaving a group
+
+create table if not exists group_messages (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references groups(id) on delete cascade,
+  sender_id uuid not null references auth.users(id) on delete cascade,
+  sender_email text not null,
+  body text not null default '',
+  media_path text,
+  media_mime text,
+  media_name text,
+  media_size bigint,
+  created_at timestamptz not null default now()
+);
+alter table group_messages enable row level security;
+drop policy if exists "group_messages_select_member" on group_messages;
+create policy "group_messages_select_member" on group_messages
+  for select using (
+    exists (
+      select 1 from group_members gm
+      where gm.group_id = group_messages.group_id and gm.user_id = auth.uid()
+    )
+  );
+drop policy if exists "group_messages_insert_member" on group_messages;
+create policy "group_messages_insert_member" on group_messages
+  for insert with check (
+    sender_id = auth.uid()
+    and exists (
+      select 1 from group_members gm
+      where gm.group_id = group_messages.group_id and gm.user_id = auth.uid()
+    )
+  );
+
+-- Per-member read tracking -- one row per (message, member) once that
+-- member has seen it. Absence of a row means "not yet read by them".
+create table if not exists group_message_reads (
+  message_id uuid not null references group_messages(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (message_id, user_id)
+);
+alter table group_message_reads enable row level security;
+drop policy if exists "group_message_reads_select_member" on group_message_reads;
+create policy "group_message_reads_select_member" on group_message_reads
+  for select using (
+    exists (
+      select 1 from group_messages gmsg
+      join group_members gm on gm.group_id = gmsg.group_id
+      where gmsg.id = group_message_reads.message_id and gm.user_id = auth.uid()
+    )
+  );
+drop policy if exists "group_message_reads_insert_own" on group_message_reads;
+create policy "group_message_reads_insert_own" on group_message_reads
+  for insert with check (auth.uid() = user_id);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'group_messages'
+  ) then
+    alter publication supabase_realtime add table group_messages;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'group_members'
+  ) then
+    alter publication supabase_realtime add table group_members;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'group_message_reads'
+  ) then
+    alter publication supabase_realtime add table group_message_reads;
+  end if;
+end $$;
+
+-- Group media reuses the same private chat-media bucket, stored under
+-- "group-{group_id}/..." instead of a conversation id, with the equivalent
+-- member-scoped access policies.
+drop policy if exists "chat_media_select_group_member" on storage.objects;
+create policy "chat_media_select_group_member" on storage.objects
+  for select using (
+    bucket_id = 'chat-media'
+    and (storage.foldername(name))[1] like 'group-%'
+    and exists (
+      select 1 from group_members gm
+      where gm.group_id = replace((storage.foldername(name))[1], 'group-', '')::uuid
+        and gm.user_id = auth.uid()
+    )
+  );
+drop policy if exists "chat_media_insert_group_member" on storage.objects;
+create policy "chat_media_insert_group_member" on storage.objects
+  for insert with check (
+    bucket_id = 'chat-media'
+    and (storage.foldername(name))[1] like 'group-%'
+    and exists (
+      select 1 from group_members gm
+      where gm.group_id = replace((storage.foldername(name))[1], 'group-', '')::uuid
+        and gm.user_id = auth.uid()
+    )
+  );

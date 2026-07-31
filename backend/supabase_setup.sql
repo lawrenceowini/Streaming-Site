@@ -374,6 +374,17 @@ create table if not exists groups (
   created_at timestamptz not null default now()
 );
 alter table groups enable row level security;
+
+create table if not exists group_members (
+  group_id uuid not null references groups(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (group_id, user_id)
+);
+alter table group_members enable row level security;
+
+-- groups policies (added now that group_members exists, since these check
+-- membership against it)
 drop policy if exists "groups_select_member" on groups;
 create policy "groups_select_member" on groups
   for select using (
@@ -394,13 +405,7 @@ create policy "groups_update_member" on groups
     )
   );
 
-create table if not exists group_members (
-  group_id uuid not null references groups(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  joined_at timestamptz not null default now(),
-  primary key (group_id, user_id)
-);
-alter table group_members enable row level security;
+-- group_members policies
 drop policy if exists "group_members_select_member" on group_members;
 create policy "group_members_select_member" on group_members
   for select using (

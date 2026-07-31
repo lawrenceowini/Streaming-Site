@@ -3694,8 +3694,8 @@
         const groupIds = (memberships || []).map((m) => m.group_id);
 
         const list = $("groups-list");
-        list.innerHTML = "";
         if (!groupIds.length) {
+          list.innerHTML = "";
           $("groups-empty").style.display = "block";
           updateGroupsUnreadBadge(0);
           subscribeToGroupsList(myId);
@@ -3739,6 +3739,7 @@
           return bTime - aTime;
         });
 
+        list.innerHTML = "";
         for (const group of groups || []) {
           const last = lastByGroup[group.id];
           let preview = "No messages yet";

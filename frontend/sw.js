@@ -3,10 +3,22 @@
 // scope covers the whole site) -- Vercel does this automatically since
 // frontend/ is the project root.
 //
-// This worker does two things:
-//   1. Shows a notification when a push arrives (even if no tab is open).
-//   2. When that notification is clicked, opens or focuses a tab at
-//      /?room=<code> so the person lands straight on the right room.
+// This worker does three things:
+//   1. For an incoming call, checks whether a tab of this app is already
+//      focused -- if so, messages that page directly so it can show a small
+//      in-app popup instead of also throwing a system notification on top
+//      of whatever the person is already looking at. There's no web API
+//      that can make a *system* notification literally full-screen (that's
+//      reserved for native calling apps registered with the OS's telecom
+//      framework) -- but a page that's genuinely not in the foreground can
+//      still show its own full-screen incoming-call UI once opened, which
+//      is what happens in case 3 below.
+//   2. Otherwise (no focused tab, or it's a message notification), shows a
+//      normal system notification, even if no tab is open at all.
+//   3. When that notification is clicked, opens or focuses a tab at
+//      /?room=<code> so the person lands straight on the right room --
+//      that page then shows its own full-screen incoming-call takeover,
+//      since arriving this way means they weren't already using the app.
 
 self.addEventListener('push', (event) => {
   let payload = {};
@@ -15,32 +27,51 @@ self.addEventListener('push', (event) => {
   } catch (e) {
     payload = {};
   }
-
   const isMessage = payload.kind === 'message';
-  const title = payload.title || (isMessage ? 'New message' : 'Incoming call');
-  const options = {
-    body: payload.body || (isMessage ? '' : 'Tap to join the call.'),
-    // Messages replace only the notification for that same conversation, so
-    // several different chats can each show their own; calls always replace
-    // any earlier "incoming call" notification instead of stacking.
-    tag: isMessage
-      ? `livecam-message-${payload.conversation_id || ''}`
-      : 'livecam-incoming-call',
-    requireInteraction: !isMessage, // a call stays on screen until acted on; a message behaves like a normal notification
-    // Browsers/OSes play their own default notification sound automatically
-    // here (there's no web API to use the device's actual ringtone file --
-    // that's OS-private) -- vibration is the one extra native-feeling touch
-    // we can add on top of that.
-    vibrate: isMessage ? [200] : [400, 200, 400, 200, 400, 600],
-    data: {
-      kind: payload.kind || 'call',
-      roomCode: payload.room_code || '',
-      conversationId: payload.conversation_id || '',
-      from: payload.from || '',
-    },
-  };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    (async () => {
+      if (!isMessage) {
+        const windowClients = await self.clients.matchAll({
+          type: 'window',
+          includeUncontrolled: true,
+        });
+        const focused = windowClients.find((c) => c.focused);
+        if (focused) {
+          focused.postMessage({
+            type: 'incoming-call-live',
+            roomCode: payload.room_code || '',
+            from: payload.from || '',
+          });
+          return; // the page handles it directly -- no system notification needed
+        }
+      }
+
+      const title = payload.title || (isMessage ? 'New message' : 'Incoming call');
+      const options = {
+        body: payload.body || (isMessage ? '' : 'Tap to join the call.'),
+        // Messages replace only the notification for that same conversation, so
+        // several different chats can each show their own; calls always replace
+        // any earlier "incoming call" notification instead of stacking.
+        tag: isMessage
+          ? `livecam-message-${payload.conversation_id || ''}`
+          : 'livecam-incoming-call',
+        requireInteraction: !isMessage, // a call stays on screen until acted on; a message behaves like a normal notification
+        // Browsers/OSes play their own default notification sound automatically
+        // here (there's no web API to use the device's actual ringtone file --
+        // that's OS-private) -- vibration is the one extra native-feeling touch
+        // we can add on top of that.
+        vibrate: isMessage ? [200] : [400, 200, 400, 200, 400, 600],
+        data: {
+          kind: payload.kind || 'call',
+          roomCode: payload.room_code || '',
+          conversationId: payload.conversation_id || '',
+          from: payload.from || '',
+        },
+      };
+      await self.registration.showNotification(title, options);
+    })()
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

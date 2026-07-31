@@ -175,6 +175,80 @@
         color: #fff;
         transform: rotate(135deg);
       }
+      .incoming-btn.big {
+        width: 64px;
+        height: 64px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      }
+      .incoming-btn.big svg {
+        width: 26px;
+        height: 26px;
+      }
+
+      /* Full-screen incoming-call takeover -- shown when the app wasn't
+         already open in the foreground. See sw.js for the focused-tab case,
+         which shows the small .invite-banner popup instead. */
+      .incoming-fullscreen {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        background: radial-gradient(circle at 50% 35%, #262b35 0%, #12151a 75%);
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 15vh 24px calc(56px + env(safe-area-inset-bottom, 0px));
+      }
+      .incoming-fullscreen.active {
+        display: flex;
+      }
+      .incoming-fullscreen-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 14px;
+      }
+      .incoming-fullscreen-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: var(--accent-dim);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+        font-family: var(--mono);
+        font-weight: 700;
+        overflow: hidden;
+        animation: pulse 1.8s infinite;
+      }
+      .incoming-fullscreen-avatar svg {
+        width: 44px;
+        height: 44px;
+      }
+      .incoming-fullscreen-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .incoming-fullscreen-title {
+        font-size: 22px;
+        color: var(--text);
+        font-weight: 600;
+        max-width: 320px;
+      }
+      .incoming-fullscreen-sub {
+        font-size: 13px;
+        color: var(--text-dim);
+        font-family: var(--mono);
+      }
+      .incoming-fullscreen-actions {
+        display: flex;
+        gap: 64px;
+        align-items: center;
+      }
 
       .auth-panel {
         width: 100%;
@@ -1481,6 +1555,50 @@
       </div>
     </div>
 
+    <!-- Full-screen incoming-call takeover: shown when the app wasn't
+         already open in the foreground (arriving via a notification tap or
+         a fresh page load) -- see sw.js for the other case, where the app
+         IS already focused and gets a small in-app popup instead. -->
+    <div class="incoming-fullscreen" id="incoming-fullscreen">
+      <div class="incoming-fullscreen-content">
+        <div class="incoming-fullscreen-avatar" id="incoming-fs-avatar">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+            ></path>
+          </svg>
+        </div>
+        <div class="incoming-fullscreen-title" id="incoming-fs-title">
+          Incoming call
+        </div>
+        <div class="incoming-fullscreen-sub">Ringing…</div>
+      </div>
+      <div class="incoming-fullscreen-actions">
+        <button
+          class="incoming-btn decline big"
+          id="decline-call-btn-fs"
+          title="Decline"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+            ></path>
+          </svg>
+        </button>
+        <button
+          class="incoming-btn accept big"
+          id="accept-call-btn-fs"
+          title="Accept"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+            ></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <!-- Auth panel: shown when signed out -->
     <div class="auth-panel" id="auth-panel">
       <h2 id="auth-title">Log in</h2>
@@ -2366,7 +2484,10 @@
       // gesture for autoplay, the very first tap/click anywhere retries it.
       function unlockRingOnFirstInteraction() {
         const tryUnlock = () => {
-          if ($("invite-banner").style.display !== "none" && !incomingRingtone.playing) {
+          const stillShowing =
+            $("invite-banner").style.display !== "none" ||
+            $("incoming-fullscreen").classList.contains("active");
+          if (stillShowing && !incomingRingtone.playing) {
             incomingRingtone.start();
           }
           document.removeEventListener("click", tryUnlock);
@@ -2421,29 +2542,43 @@
         }
       })();
 
-      function showIncomingCallScreen(fromEmail) {
-        $("incoming-call-icon").innerHTML = fromEmail
-          ? escapeHtml(initialsFor(fromEmail))
-          : ICONS.phone;
-        $("incoming-call-title").textContent = fromEmail
-          ? `Incoming call from ${fromEmail}`
-          : "Incoming call";
-        $("incoming-call-sub").textContent =
-          "Accept to join, or decline to dismiss.";
-        $("invite-banner").style.display = "flex";
+      function showIncomingCallScreen(fromEmail, opts = {}) {
+        const fullscreen = opts.fullscreen !== false; // default true -- the page-load/notification path
+        if (fullscreen) {
+          $("incoming-fs-avatar").innerHTML = fromEmail
+            ? escapeHtml(initialsFor(fromEmail))
+            : ICONS.phone;
+          $("incoming-fs-title").textContent = fromEmail
+            ? `Incoming call from ${fromEmail}`
+            : "Incoming call";
+          $("incoming-fullscreen").classList.add("active");
+          document.body.classList.add("call-active");
+        } else {
+          $("incoming-call-icon").innerHTML = fromEmail
+            ? escapeHtml(initialsFor(fromEmail))
+            : ICONS.phone;
+          $("incoming-call-title").textContent = fromEmail
+            ? `Incoming call from ${fromEmail}`
+            : "Incoming call";
+          $("incoming-call-sub").textContent =
+            "Accept to join, or decline to dismiss.";
+          $("invite-banner").style.display = "flex";
+        }
         incomingRingtone.start();
         unlockRingOnFirstInteraction();
       }
       function dismissIncomingCallScreen() {
         incomingRingtone.stop();
         $("invite-banner").style.display = "none";
+        $("incoming-fullscreen").classList.remove("active");
+        document.body.classList.remove("call-active");
         // Clean the room/from out of the URL so a refresh doesn't re-ring.
         const url = new URL(window.location.href);
         url.searchParams.delete("room");
         url.searchParams.delete("from");
         window.history.replaceState({}, "", url.pathname + url.search);
       }
-      $("accept-call-btn").onclick = async () => {
+      async function acceptIncomingCall() {
         dismissIncomingCallScreen();
         if (!currentSession) {
           alert("Please log in first, then accept the call from Recents.");
@@ -2453,11 +2588,28 @@
         const cfg = requireSetup();
         if (!cfg) return;
         await startCall(cfg, $("audio-only-checkbox").checked);
-      };
-      $("decline-call-btn").onclick = () => {
+      }
+      function declineIncomingCall() {
         dismissIncomingCallScreen();
         roomCodeInput.value = randomRoomCode();
-      };
+      }
+      $("accept-call-btn").onclick = acceptIncomingCall;
+      $("decline-call-btn").onclick = declineIncomingCall;
+      $("accept-call-btn-fs").onclick = acceptIncomingCall;
+      $("decline-call-btn-fs").onclick = declineIncomingCall;
+
+      // The service worker messages the page directly when a call comes in
+      // while a tab is already focused (see sw.js) -- shown as a small
+      // popup instead of the full-screen takeover, since the person is
+      // already looking at something.
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.addEventListener("message", (event) => {
+          if (event.data && event.data.type === "incoming-call-live") {
+            if (event.data.roomCode) roomCodeInput.value = event.data.roomCode;
+            showIncomingCallScreen(event.data.from || "", { fullscreen: false });
+          }
+        });
+      }
 
       $("gen-code").onclick = () => (roomCodeInput.value = randomRoomCode());
 
@@ -4133,6 +4285,7 @@
         incomingRingtone.stop(); // in case we got here via Accept
         callsHub.style.display = "none";
         $("invite-banner").style.display = "none";
+        $("incoming-fullscreen").classList.remove("active");
         stageCall.classList.add("active");
         document.body.classList.add("call-active");
         updateGridMode();

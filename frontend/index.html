@@ -377,6 +377,29 @@
         width: 13px;
         height: 13px;
       }
+      .group-avatar-wrap {
+        position: relative;
+        flex-shrink: 0;
+      }
+      .group-avatar-edit-btn {
+        position: absolute;
+        bottom: -3px;
+        right: -3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #1a1200;
+        border: 2px solid var(--bg-panel);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .group-avatar-edit-btn svg {
+        width: 8px;
+        height: 8px;
+      }
       .profile-name-row {
         display: flex;
         align-items: center;
@@ -1984,7 +2007,26 @@
                 ></path>
               </svg>
             </button>
-            <div class="hub-item-avatar" id="group-thread-avatar">?</div>
+            <div class="group-avatar-wrap">
+              <div class="hub-item-avatar" id="group-thread-avatar">?</div>
+              <button
+                class="group-avatar-edit-btn"
+                id="group-avatar-edit-btn"
+                title="Change group photo"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3zm3 15a5 5 0 1 1 5-5 5 5 0 0 1-5 5z"
+                  ></path>
+                </svg>
+              </button>
+              <input
+                type="file"
+                id="group-avatar-file-input"
+                accept="image/*"
+                style="display: none"
+              />
+            </div>
             <div class="thread-title" id="group-thread-title">Group</div>
             <button
               class="hub-icon-btn"
@@ -4108,6 +4150,53 @@
         await markGroupMessagesRead(group.id);
         subscribeToGroupThread(group.id);
       }
+
+      $("group-avatar-edit-btn").onclick = () => $("group-avatar-file-input").click();
+      $("group-avatar-file-input").addEventListener("change", async () => {
+        const file = $("group-avatar-file-input").files[0];
+        $("group-avatar-file-input").value = "";
+        if (!file || !currentGroupThread) return;
+        if (!file.type.startsWith("image/")) {
+          alert("Please choose an image file.");
+          return;
+        }
+        if (file.size > MAX_AVATAR_BYTES) {
+          alert(`That image is too large (max ${formatFileSize(MAX_AVATAR_BYTES)}).`);
+          return;
+        }
+        const group = currentGroupThread;
+        $("group-avatar-edit-btn").disabled = true;
+        try {
+          const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+          const path = `group-${group.id}/photo.${ext}`;
+          const { error: uploadError } = await sb.storage
+            .from("avatars")
+            .upload(path, file, {
+              contentType: file.type,
+              upsert: true, // replaces any previous group photo instead of piling up old ones
+            });
+          if (uploadError) {
+            alert("Could not upload that photo: " + uploadError.message);
+            return;
+          }
+          const { data: pub } = sb.storage.from("avatars").getPublicUrl(path);
+          // Cache-bust so the new photo shows immediately instead of the
+          // browser reusing a cached copy from the old upload at this URL.
+          const avatarUrl = `${pub.publicUrl}?v=${Date.now()}`;
+          const { error: updateError } = await sb
+            .from("groups")
+            .update({ avatar_url: avatarUrl })
+            .eq("id", group.id);
+          if (updateError) {
+            alert("Could not save that photo: " + updateError.message);
+            return;
+          }
+          currentGroupThread.avatar_url = avatarUrl;
+          $("group-thread-avatar").innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="">`;
+        } finally {
+          $("group-avatar-edit-btn").disabled = false;
+        }
+      });
 
       async function loadGroupMessages(groupId) {
         const { data, error } = await sb

@@ -1366,6 +1366,11 @@
         color: var(--text-dim);
         margin-left: 4px;
       }
+      .voice-message-player {
+        width: 220px;
+        height: 34px;
+        max-width: 100%;
+      }
       .chat-msg {
         margin-bottom: 8px;
         max-width: 80%;
@@ -1440,7 +1445,10 @@
         cursor: not-allowed;
       }
       #chat-attach,
-      #thread-attach {
+      #thread-attach,
+      #group-attach,
+      #thread-record-btn,
+      #group-record-btn {
         background: transparent;
         border: 1px solid var(--line);
         color: var(--text-dim);
@@ -1453,14 +1461,46 @@
         justify-content: center;
       }
       #chat-attach svg,
-      #thread-attach svg {
+      #thread-attach svg,
+      #group-attach svg,
+      #thread-record-btn svg,
+      #group-record-btn svg {
         width: 15px;
         height: 15px;
       }
       #chat-attach:hover:not(:disabled),
-      #thread-attach:hover:not(:disabled) {
+      #thread-attach:hover:not(:disabled),
+      #group-attach:hover:not(:disabled),
+      #thread-record-btn:hover:not(:disabled),
+      #group-record-btn:hover:not(:disabled) {
         border-color: var(--accent);
         color: var(--accent);
+      }
+      #thread-record-btn.recording,
+      #group-record-btn.recording {
+        background: var(--error);
+        border-color: var(--error);
+        color: #fff;
+        animation: pulse 1.4s infinite;
+      }
+      .recording-indicator {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--error);
+        padding: 4px 4px 8px;
+      }
+      .recording-indicator.show {
+        display: flex;
+      }
+      .recording-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--error);
+        animation: pulse 1.4s infinite;
       }
 
       .file-bubble {
@@ -1876,11 +1916,22 @@
             <div class="thread-title" id="thread-title">Conversation</div>
           </div>
           <div class="thread-log" id="thread-log"></div>
+          <div class="recording-indicator" id="thread-recording-indicator">
+            <span class="recording-dot"></span>
+            <span id="thread-recording-time">0:00</span> Recording…
+          </div>
           <div class="chat-input-row">
             <button id="thread-attach" title="Send a photo or file">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path
                   d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6z"
+                ></path>
+              </svg>
+            </button>
+            <button id="thread-record-btn" title="Record a voice message">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"
                 ></path>
               </svg>
             </button>
@@ -1949,11 +2000,22 @@
             </button>
           </div>
           <div class="thread-log" id="group-thread-log"></div>
+          <div class="recording-indicator" id="group-recording-indicator">
+            <span class="recording-dot"></span>
+            <span id="group-recording-time">0:00</span> Recording…
+          </div>
           <div class="chat-input-row">
             <button id="group-attach" title="Send a photo or file">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path
                   d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6z"
+                ></path>
+              </svg>
+            </button>
+            <button id="group-record-btn" title="Record a voice message">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"
                 ></path>
               </svg>
             </button>
@@ -2192,6 +2254,7 @@
           '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"></path></svg>',
         person:
           '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.76-3.58-5-8-5z"></path></svg>',
+        stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>',
       };
       const authPanel = $("auth-panel");
       const setupPanel = $("setup-panel");
@@ -2838,6 +2901,35 @@
         return map;
       }
 
+      // Same idea, keyed by user id instead of email -- used in Groups,
+      // where each message can have a different sender (unlike a 1:1 chat,
+      // which only ever has one "other side" to resolve).
+      async function batchLookupProfilesById(ids) {
+        const unique = [...new Set(ids.filter(Boolean))];
+        if (!unique.length) return {};
+        const { data } = await sb
+          .from("profiles")
+          .select("id,username,email,avatar_url")
+          .in("id", unique);
+        const map = {};
+        for (const p of data || []) map[p.id] = p;
+        return map;
+      }
+      // A small persistent cache for the one-at-a-time case (a single new
+      // message arriving live) -- avoids a fresh query for the same sender
+      // every time they post another message in an active conversation.
+      const senderProfileCache = new Map();
+      async function getSenderProfile(userId) {
+        if (senderProfileCache.has(userId)) return senderProfileCache.get(userId);
+        const { data } = await sb
+          .from("profiles")
+          .select("username,email,avatar_url")
+          .eq("id", userId)
+          .maybeSingle();
+        if (data) senderProfileCache.set(userId, data);
+        return data;
+      }
+
       async function loadRecents() {
         if (!currentSession) return;
         const { data, error } = await sb
@@ -3183,6 +3275,67 @@
         }
       });
 
+      /* ================= Voice messages: shared recorder ================= */
+      // One recorder at a time makes sense here -- reused by whichever
+      // thread (1:1 or group) is currently open. Records via MediaRecorder,
+      // then hands the finished blob to a per-thread onComplete callback
+      // that uploads it the same way an attached file would be.
+      let activeRecording = null; // { mediaRecorder, stream, startedAt, timerInterval, button, timeEl, indicatorEl }
+
+      function formatDuration(ms) {
+        const totalSeconds = Math.round(ms / 1000);
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        return `${m}:${String(s).padStart(2, "0")}`;
+      }
+
+      async function toggleVoiceRecording(button, timeEl, indicatorEl, onComplete) {
+        if (activeRecording) {
+          activeRecording.mediaRecorder.stop(); // onstop below does the rest
+          return;
+        }
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e) {
+          alert("Microphone permission is needed to record a voice message.");
+          return;
+        }
+        const preferredType = "audio/webm;codecs=opus";
+        const mimeType =
+          typeof MediaRecorder.isTypeSupported === "function" && MediaRecorder.isTypeSupported(preferredType)
+            ? preferredType
+            : "";
+        const mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        const chunks = [];
+        const startedAt = Date.now();
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach((t) => t.stop());
+          clearInterval(activeRecording.timerInterval);
+          const durationMs = Date.now() - startedAt;
+          const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+          button.classList.remove("recording");
+          indicatorEl.classList.remove("show");
+          activeRecording = null;
+          if (durationMs < 500) return; // too short to be a real message -- likely an accidental tap
+          onComplete(blob, durationMs);
+        };
+
+        button.classList.add("recording");
+        indicatorEl.classList.add("show");
+        timeEl.textContent = "0:00";
+        const timerInterval = setInterval(() => {
+          timeEl.textContent = formatDuration(Date.now() - startedAt);
+        }, 500);
+
+        activeRecording = { mediaRecorder, stream, startedAt, timerInterval, button, timeEl, indicatorEl };
+        mediaRecorder.start();
+      }
+
       /* ================= Chats: persistent 1:1 messaging ================= */
       // Unlike the in-call chat (ephemeral, over a WebRTC DataChannel, gone
       // once the call ends), this is durable: stored in Supabase so it's
@@ -3475,7 +3628,14 @@
         if (m.media_path) {
           const url = await signedMediaUrl(m.media_path);
           const isImage = m.media_mime && m.media_mime.startsWith("image/");
-          if (isImage && url) {
+          const isAudio = m.media_mime && m.media_mime.startsWith("audio/");
+          if (isAudio && url) {
+            const audio = document.createElement("audio");
+            audio.controls = true;
+            audio.src = url;
+            audio.className = "voice-message-player";
+            bubble.appendChild(audio);
+          } else if (isImage && url) {
             const link = document.createElement("a");
             link.href = url;
             link.target = "_blank";
@@ -3690,6 +3850,45 @@
         }
       });
 
+      async function sendVoiceMessage(blob, durationMs) {
+        if (!currentThreadConv) return;
+        const conv = currentThreadConv;
+        const myId = currentSession.user.id;
+        const myEmail = currentSession.user.email;
+        const ext = blob.type.includes("webm") ? "webm" : blob.type.includes("mp4") ? "m4a" : "audio";
+        const path = `${conv.id}/${crypto.randomUUID()}-voice.${ext}`;
+
+        const { error: uploadError } = await sb.storage
+          .from("chat-media")
+          .upload(path, blob, { contentType: blob.type });
+        if (uploadError) {
+          alert("Could not send that voice message: " + uploadError.message);
+          return;
+        }
+        const { error: insertError } = await sb.from("messages").insert({
+          conversation_id: conv.id,
+          sender_id: myId,
+          sender_email: myEmail,
+          body: "",
+          media_path: path,
+          media_mime: blob.type,
+          media_name: `Voice message (${formatDuration(durationMs)})`,
+          media_size: blob.size,
+        });
+        if (insertError) {
+          alert("Could not send that voice message: " + insertError.message);
+          return;
+        }
+        await finishSendingMessage(conv, "🎤 Voice message");
+      }
+      $("thread-record-btn").onclick = () =>
+        toggleVoiceRecording(
+          $("thread-record-btn"),
+          $("thread-recording-time"),
+          $("thread-recording-indicator"),
+          sendVoiceMessage,
+        );
+
       // A push notification for a message deep-links to /?chat=<id> --
       // jump straight into that conversation once signed in.
       async function openConversationFromDeepLink(conversationId) {
@@ -3745,13 +3944,16 @@
         // batched queries rather than one round-trip per group.
         const { data: lastMessages } = await sb
           .from("group_messages")
-          .select("group_id,body,media_path,media_mime,sender_email,created_at")
+          .select("group_id,body,media_path,media_mime,sender_id,sender_email,created_at")
           .in("group_id", groupIds)
           .order("created_at", { ascending: false });
         const lastByGroup = {};
         for (const m of lastMessages || []) {
           if (!lastByGroup[m.group_id]) lastByGroup[m.group_id] = m; // first hit per group is the newest, already ordered desc
         }
+        const lastSenderProfileMap = await batchLookupProfilesById(
+          Object.values(lastByGroup).map((m) => m.sender_id),
+        );
 
         const { data: readRows } = await sb
           .from("group_message_reads")
@@ -3780,10 +3982,13 @@
           const last = lastByGroup[group.id];
           let preview = "No messages yet";
           if (last) {
+            const senderDisplay =
+              (lastSenderProfileMap[last.sender_id] && lastSenderProfileMap[last.sender_id].username) ||
+              last.sender_email;
             preview = last.media_path
-              ? `${last.sender_email}: ${last.media_mime && last.media_mime.startsWith("image/") ? "📷 Photo" : "📎 File"}`
+              ? `${senderDisplay}: ${last.media_mime && last.media_mime.startsWith("image/") ? "📷 Photo" : last.media_mime && last.media_mime.startsWith("audio/") ? "🎤 Voice message" : "📎 File"}`
               : last.body
-                ? `${last.sender_email}: ${last.body}`
+                ? `${senderDisplay}: ${last.body}`
                 : "No messages yet";
           }
           const unreadCount = unreadByGroup[group.id] || 0;
@@ -3916,7 +4121,9 @@
           console.warn("Could not load group messages:", error);
           return;
         }
-        for (const m of data) await renderGroupMessage(m);
+        const senderIds = [...new Set((data || []).map((m) => m.sender_id))];
+        const profileMap = await batchLookupProfilesById(senderIds);
+        for (const m of data) await renderGroupMessage(m, profileMap);
         log.scrollTop = log.scrollHeight;
       }
 
@@ -3928,7 +4135,7 @@
         return count || 0;
       }
 
-      async function renderGroupMessage(m) {
+      async function renderGroupMessage(m, profileMap) {
         const mine = m.sender_id === currentSession.user.id;
         const wrap = document.createElement("div");
         wrap.className = "chat-msg " + (mine ? "me" : "them");
@@ -3936,16 +4143,25 @@
         bubble.className = "bubble";
 
         if (!mine) {
+          const senderProfile =
+            (profileMap && profileMap[m.sender_id]) || (await getSenderProfile(m.sender_id));
           const sender = document.createElement("div");
           sender.className = "msg-sender";
-          sender.textContent = m.sender_email;
+          sender.textContent = (senderProfile && senderProfile.username) || m.sender_email;
           bubble.appendChild(sender);
         }
 
         if (m.media_path) {
           const url = await signedMediaUrl(m.media_path);
           const isImage = m.media_mime && m.media_mime.startsWith("image/");
-          if (isImage && url) {
+          const isAudio = m.media_mime && m.media_mime.startsWith("audio/");
+          if (isAudio && url) {
+            const audio = document.createElement("audio");
+            audio.controls = true;
+            audio.src = url;
+            audio.className = "voice-message-player";
+            bubble.appendChild(audio);
+          } else if (isImage && url) {
             const link = document.createElement("a");
             link.href = url;
             link.target = "_blank";
@@ -4159,6 +4375,45 @@
           $("group-attach").disabled = false;
         }
       });
+
+      async function sendGroupVoiceMessage(blob, durationMs) {
+        if (!currentGroupThread) return;
+        const group = currentGroupThread;
+        const myId = currentSession.user.id;
+        const myEmail = currentSession.user.email;
+        const ext = blob.type.includes("webm") ? "webm" : blob.type.includes("mp4") ? "m4a" : "audio";
+        const path = `group-${group.id}/${crypto.randomUUID()}-voice.${ext}`;
+
+        const { error: uploadError } = await sb.storage
+          .from("chat-media")
+          .upload(path, blob, { contentType: blob.type });
+        if (uploadError) {
+          alert("Could not send that voice message: " + uploadError.message);
+          return;
+        }
+        const { error: insertError } = await sb.from("group_messages").insert({
+          group_id: group.id,
+          sender_id: myId,
+          sender_email: myEmail,
+          body: "",
+          media_path: path,
+          media_mime: blob.type,
+          media_name: `Voice message (${formatDuration(durationMs)})`,
+          media_size: blob.size,
+        });
+        if (insertError) {
+          alert("Could not send that voice message: " + insertError.message);
+          return;
+        }
+        await finishSendingGroupMessage(group, "🎤 Voice message");
+      }
+      $("group-record-btn").onclick = () =>
+        toggleVoiceRecording(
+          $("group-record-btn"),
+          $("group-recording-time"),
+          $("group-recording-indicator"),
+          sendGroupVoiceMessage,
+        );
 
       $("group-members-btn").onclick = async () => {
         if (!currentGroupThread) return;

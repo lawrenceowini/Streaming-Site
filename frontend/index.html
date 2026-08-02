@@ -493,6 +493,38 @@
         border: none;
         border-radius: 0;
       }
+      .pill-row {
+        display: flex;
+        gap: 6px;
+        padding: 14px 4px 10px;
+      }
+      .pill-btn {
+        flex: 1;
+        background: var(--bg-panel-2);
+        border: 1px solid var(--line);
+        color: var(--text-dim);
+        padding: 8px 10px;
+        border-radius: 20px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        cursor: pointer;
+        text-align: center;
+      }
+      .pill-btn:hover {
+        border-color: var(--accent);
+        color: var(--text);
+      }
+      .pill-btn.active {
+        background: var(--accent-dim);
+        border-color: var(--accent);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      #call-filter-recents,
+      #call-filter-favorites,
+      #call-filter-all {
+        padding: 0 4px 4px;
+      }
       .hub-empty {
         font-size: 12.5px;
         color: var(--text-dim);
@@ -511,6 +543,32 @@
       }
       .hub-item:last-child {
         border-bottom: none;
+      }
+      .hub-star-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: var(--text-dim);
+        opacity: 0.5;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .hub-star-btn svg {
+        width: 15px;
+        height: 15px;
+      }
+      .hub-star-btn:hover {
+        opacity: 1;
+        color: var(--text);
+      }
+      .hub-star-btn.favorited {
+        color: var(--accent);
+        opacity: 1;
       }
       .hub-item-avatar {
         width: 36px;
@@ -1732,20 +1790,6 @@
             ></path>
           </svg>
         </button>
-        <button class="hub-tab" data-tab="recents" title="Recents">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 10.41V6h-2v7l5.25 3.15 1-1.64z"
-            ></path>
-          </svg>
-        </button>
-        <button class="hub-tab" data-tab="favorites" title="Favorites">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"
-            ></path>
-          </svg>
-        </button>
         <button class="hub-tab" data-tab="schedule" title="Schedule">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
@@ -1857,25 +1901,43 @@
             </button>
           </div>
         </div>
-      </div>
 
-      <div class="hub-panel" id="hub-panel-recents" style="display: none">
-        <div id="recents-list"></div>
-        <p class="hub-empty" id="recents-empty">
-          No recent calls yet — calls you make or join will show up here.
-        </p>
-      </div>
-
-      <div class="hub-panel" id="hub-panel-favorites" style="display: none">
-        <div class="favorite-add-row">
-          <input type="text" id="fav-label" placeholder="Name" />
-          <input type="text" id="fav-email" placeholder="Their email" />
-          <button class="ghost-btn" id="fav-add-btn">+ Add</button>
+        <div class="pill-row">
+          <button class="pill-btn active" data-call-filter="recents">
+            Recents
+          </button>
+          <button class="pill-btn" data-call-filter="favorites">
+            Favorites
+          </button>
+          <button class="pill-btn" data-call-filter="all">All</button>
         </div>
-        <div id="favorites-list"></div>
-        <p class="hub-empty" id="favorites-empty">
-          No favorites yet — add someone you call often for one-tap dialing.
-        </p>
+
+        <div id="call-filter-recents">
+          <div id="recents-list"></div>
+          <p class="hub-empty" id="recents-empty">
+            No recent calls yet — calls you make or join will show up here.
+          </p>
+        </div>
+
+        <div id="call-filter-favorites" style="display: none">
+          <div class="favorite-add-row">
+            <input type="text" id="fav-label" placeholder="Name" />
+            <input type="text" id="fav-email" placeholder="Their email" />
+            <button class="ghost-btn" id="fav-add-btn">+ Add</button>
+          </div>
+          <div id="favorites-list"></div>
+          <p class="hub-empty" id="favorites-empty">
+            No favorites yet — add someone you call often for one-tap dialing.
+          </p>
+        </div>
+
+        <div id="call-filter-all" style="display: none">
+          <div id="call-all-list"></div>
+          <p class="hub-empty" id="call-all-empty">
+            Nothing to show yet — your favorites and recent calls will
+            appear here together.
+          </p>
+        </div>
       </div>
 
       <div class="hub-panel" id="hub-panel-schedule" style="display: none">
@@ -1915,6 +1977,14 @@
               placeholder="Start a chat by username"
             />
             <button class="ghost-btn" id="new-chat-btn">+ Chat</button>
+          </div>
+          <div class="pill-row">
+            <button class="pill-btn active" data-chats-filter="all">
+              All
+            </button>
+            <button class="pill-btn" data-chats-filter="favorites">
+              Favorites
+            </button>
           </div>
           <div id="conversations-list"></div>
           <p class="hub-empty" id="conversations-empty">
@@ -1987,6 +2057,14 @@
               placeholder="Members (usernames, comma-separated)"
             />
             <button class="ghost-btn" id="new-group-btn">+ Group</button>
+          </div>
+          <div class="pill-row">
+            <button class="pill-btn active" data-groups-filter="all">
+              All
+            </button>
+            <button class="pill-btn" data-groups-filter="favorites">
+              Favorites
+            </button>
           </div>
           <div id="groups-list"></div>
           <p class="hub-empty" id="groups-empty">
@@ -2892,7 +2970,7 @@
           .forEach((btn) =>
             btn.classList.toggle("active", btn.dataset.tab === tab),
           );
-        ["call", "recents", "favorites", "schedule", "chats", "groups", "profile"].forEach((t) => {
+        ["call", "schedule", "chats", "groups", "profile"].forEach((t) => {
           const isActive = t === tab;
           // #hub-panel-chats and #hub-panel-groups are flex columns in CSS
           // -- "block" would silently override that via inline style, the
@@ -2903,6 +2981,7 @@
               : "block"
             : "none";
         });
+        if (tab === "call") loadCallFilter(currentCallFilter);
         if (tab === "chats") loadConversations();
         if (tab === "groups") loadGroups();
       }
@@ -2970,6 +3049,93 @@
           .maybeSingle();
         if (data) senderProfileCache.set(userId, data);
         return data;
+      }
+
+      /* ---------------- Call tab: Recents / Favorites / All pills ---------------- */
+      let currentCallFilter = "recents";
+      function loadCallFilter(filter) {
+        currentCallFilter = filter;
+        document
+          .querySelectorAll("[data-call-filter]")
+          .forEach((btn) => btn.classList.toggle("active", btn.dataset.callFilter === filter));
+        ["recents", "favorites", "all"].forEach((f) => {
+          $(`call-filter-${f}`).style.display = f === filter ? "block" : "none";
+        });
+        if (filter === "recents") loadRecents();
+        else if (filter === "favorites") loadFavorites();
+        else loadCallAll();
+      }
+      document.querySelectorAll("[data-call-filter]").forEach((btn) => {
+        btn.onclick = () => loadCallFilter(btn.dataset.callFilter);
+      });
+
+      // A single combined view: favorites pinned at the top (they're
+      // deliberate, so they lead), then recent calls below -- the same
+      // "starred contacts, then everyone else" shape most contact lists use.
+      async function loadCallAll() {
+        if (!currentSession) return;
+        const [{ data: favData }, { data: recentData }] = await Promise.all([
+          sb.from("favorites").select("*").order("created_at", { ascending: false }),
+          sb.from("call_history").select("*").order("created_at", { ascending: false }).limit(20),
+        ]);
+        const favorites = favData || [];
+        const recents = recentData || [];
+
+        const emails = [
+          ...favorites.map((r) => r.target_email),
+          ...recents
+            .map((r) => r.peer_label)
+            .filter((label) => label && !label.includes(",") && label.includes("@")),
+        ];
+        const profileMap = await batchLookupProfilesByEmail(emails);
+
+        const list = $("call-all-list");
+        list.innerHTML = "";
+        $("call-all-empty").style.display = favorites.length || recents.length ? "none" : "block";
+
+        for (const row of favorites) {
+          const profile = profileMap[row.target_email.toLowerCase()];
+          const subtitle = (profile && profile.username) || row.target_email;
+          const avatarUrl = profile && profile.avatar_url;
+          const item = document.createElement("div");
+          item.className = "hub-item";
+          item.innerHTML = `
+            <div class="hub-item-avatar">${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="">` : escapeHtml(initialsFor(row.label))}</div>
+            <div class="hub-item-body">
+              <div class="hub-item-title">${escapeHtml(row.label)} ${ICONS.star}</div>
+              <div class="hub-item-sub">${escapeHtml(subtitle)}</div>
+            </div>
+            <div class="hub-item-actions">
+              <button class="hub-icon-btn call" title="Call">${ICONS.phone}</button>
+            </div>`;
+          item.querySelector(".hub-item-title svg").style.cssText =
+            "width:11px;height:11px;color:var(--accent);vertical-align:middle;margin-left:2px";
+          item
+            .querySelector(".call")
+            .addEventListener("click", () => quickCall(randomRoomCode(), row.target_email));
+          list.appendChild(item);
+        }
+        for (const row of recents) {
+          const isSingleEmail = row.peer_label && !row.peer_label.includes(",") && row.peer_label.includes("@");
+          const profile = isSingleEmail ? profileMap[row.peer_label.toLowerCase()] : null;
+          const title = (profile && profile.username) || row.peer_label || row.room_code;
+          const avatarUrl = profile && profile.avatar_url;
+          const item = document.createElement("div");
+          item.className = "hub-item";
+          item.innerHTML = `
+            <div class="hub-item-avatar">${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="">` : escapeHtml(initialsFor(title))}</div>
+            <div class="hub-item-body">
+              <div class="hub-item-title">${escapeHtml(title)}</div>
+              <div class="hub-item-sub">${relativeTime(row.created_at)} · ${escapeHtml(row.room_code)}</div>
+            </div>
+            <div class="hub-item-actions">
+              <button class="hub-icon-btn call" title="Call again">${ICONS.phone}</button>
+            </div>`;
+          item
+            .querySelector(".call")
+            .addEventListener("click", () => quickCall(row.room_code, row.peer_label, row.server_url));
+          list.appendChild(item);
+        }
       }
 
       async function loadRecents() {
@@ -3391,6 +3557,17 @@
         return wsUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
       }
 
+      let currentChatsFilter = "all";
+      document.querySelectorAll("[data-chats-filter]").forEach((btn) => {
+        btn.onclick = () => {
+          currentChatsFilter = btn.dataset.chatsFilter;
+          document
+            .querySelectorAll("[data-chats-filter]")
+            .forEach((b) => b.classList.toggle("active", b === btn));
+          loadConversations();
+        };
+      });
+
       async function loadConversations() {
         if (!currentSession) return;
         const myId = currentSession.user.id;
@@ -3410,6 +3587,15 @@
           console.warn("Could not load conversations:", error);
           return;
         }
+
+        const { data: favRows } = await sb
+          .from("favorite_conversations")
+          .select("conversation_id")
+          .eq("user_id", myId);
+        const favoriteConvIds = new Set((favRows || []).map((r) => r.conversation_id));
+
+        const visibleData =
+          currentChatsFilter === "favorites" ? data.filter((c) => favoriteConvIds.has(c.id)) : data;
 
         // Live profile lookup (current username + photo) for whoever's on
         // the other side of each conversation -- more reliable than the
@@ -3442,8 +3628,8 @@
 
         const list = $("conversations-list");
         list.innerHTML = "";
-        $("conversations-empty").style.display = data.length ? "none" : "block";
-        for (const conv of data) {
+        $("conversations-empty").style.display = visibleData.length ? "none" : "block";
+        for (const conv of visibleData) {
           const otherId = conv.user_a_id === myId ? conv.user_b_id : conv.user_a_id;
           const otherProfile = profileMap[otherId];
           const fallbackDisplay =
@@ -3453,6 +3639,7 @@
           const otherDisplay = (otherProfile && (otherProfile.username || otherProfile.email)) || fallbackDisplay;
           const avatarUrl = otherProfile && otherProfile.avatar_url;
           const unreadCountForConv = unreadByConv[conv.id] || 0;
+          const isFav = favoriteConvIds.has(conv.id);
           const item = document.createElement("div");
           item.className = "hub-item";
           item.style.cursor = "pointer";
@@ -3463,7 +3650,17 @@
               <div class="hub-item-sub">${escapeHtml(conv.last_message_preview || "No messages yet")}${conv.last_message_at ? " · " + relativeTime(conv.last_message_at) : ""}</div>
             </div>
             ${unreadCountForConv ? `<span class="unread-badge show" style="position: static">${unreadCountForConv}</span>` : ""}
+            <button class="hub-star-btn${isFav ? " favorited" : ""}" title="${isFav ? "Remove from favorites" : "Add to favorites"}">${ICONS.star}</button>
           `;
+          item.querySelector(".hub-star-btn").addEventListener("click", async (e) => {
+            e.stopPropagation();
+            if (isFav) {
+              await sb.from("favorite_conversations").delete().eq("user_id", myId).eq("conversation_id", conv.id);
+            } else {
+              await sb.from("favorite_conversations").insert({ user_id: myId, conversation_id: conv.id });
+            }
+            loadConversations();
+          });
           item.addEventListener("click", () => openConversationThread(conv));
           list.appendChild(item);
         }
@@ -3957,6 +4154,17 @@
       let groupThreadChannel = null;
       let groupsListChannel = null;
 
+      let currentGroupsFilter = "all";
+      document.querySelectorAll("[data-groups-filter]").forEach((btn) => {
+        btn.onclick = () => {
+          currentGroupsFilter = btn.dataset.groupsFilter;
+          document
+            .querySelectorAll("[data-groups-filter]")
+            .forEach((b) => b.classList.toggle("active", b === btn));
+          loadGroups();
+        };
+      });
+
       async function loadGroups() {
         if (!currentSession) return;
         const myId = currentSession.user.id;
@@ -3980,7 +4188,17 @@
         }
         $("groups-empty").style.display = "none";
 
-        const { data: groups } = await sb.from("groups").select("*").in("id", groupIds);
+        const { data: favRows } = await sb
+          .from("favorite_groups")
+          .select("group_id")
+          .eq("user_id", myId);
+        const favoriteGroupIds = new Set((favRows || []).map((r) => r.group_id));
+
+        const { data: allGroups } = await sb.from("groups").select("*").in("id", groupIds);
+        const groups =
+          currentGroupsFilter === "favorites"
+            ? (allGroups || []).filter((g) => favoriteGroupIds.has(g.id))
+            : allGroups || [];
 
         // Last message + unread count per group, computed from a couple of
         // batched queries rather than one round-trip per group.
@@ -4013,14 +4231,15 @@
         }
         updateGroupsUnreadBadge(Object.values(unreadByGroup).reduce((a, b) => a + b, 0));
 
-        (groups || []).sort((a, b) => {
+        groups.sort((a, b) => {
           const aTime = lastByGroup[a.id] ? new Date(lastByGroup[a.id].created_at).getTime() : 0;
           const bTime = lastByGroup[b.id] ? new Date(lastByGroup[b.id].created_at).getTime() : 0;
           return bTime - aTime;
         });
 
         list.innerHTML = "";
-        for (const group of groups || []) {
+        $("groups-empty").style.display = groups.length ? "none" : "block";
+        for (const group of groups) {
           const last = lastByGroup[group.id];
           let preview = "No messages yet";
           if (last) {
@@ -4034,6 +4253,7 @@
                 : "No messages yet";
           }
           const unreadCount = unreadByGroup[group.id] || 0;
+          const isFav = favoriteGroupIds.has(group.id);
           const item = document.createElement("div");
           item.className = "hub-item";
           item.style.cursor = "pointer";
@@ -4044,7 +4264,17 @@
               <div class="hub-item-sub">${escapeHtml(preview)}${last ? " · " + relativeTime(last.created_at) : ""}</div>
             </div>
             ${unreadCount ? `<span class="unread-badge show" style="position: static">${unreadCount}</span>` : ""}
+            <button class="hub-star-btn${isFav ? " favorited" : ""}" title="${isFav ? "Remove from favorites" : "Add to favorites"}">${ICONS.star}</button>
           `;
+          item.querySelector(".hub-star-btn").addEventListener("click", async (e) => {
+            e.stopPropagation();
+            if (isFav) {
+              await sb.from("favorite_groups").delete().eq("user_id", myId).eq("group_id", group.id);
+            } else {
+              await sb.from("favorite_groups").insert({ user_id: myId, group_id: group.id });
+            }
+            loadGroups();
+          });
           item.addEventListener("click", () => openGroupThread(group));
           list.appendChild(item);
         }

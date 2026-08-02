@@ -383,15 +383,39 @@ create table if not exists group_members (
 );
 alter table group_members enable row level security;
 
--- groups policies (added now that group_members exists, since these check
--- membership against it)
+-- A policy that checks group_members by querying group_members again (as
+-- group_members' own policies naturally need to) causes Postgres to
+-- recurse into the very policy it's evaluating -- in bad cases this doesn't
+-- even come back as a clean error, the connection just gets dropped, which
+-- a browser reports as a generic "failed to fetch" with no useful detail.
+-- A SECURITY DEFINER function sidesteps this: it runs with the function
+-- owner's privileges, so its internal query bypasses RLS entirely instead
+-- of triggering it again.
+create or replace function public.is_group_member(p_group_id uuid, p_user_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from group_members
+    where group_id = p_group_id and user_id = p_user_id
+  );
+$$;
+
+-- groups policies
 drop policy if exists "groups_select_member" on groups;
 create policy "groups_select_member" on groups
   for select using (
-    exists (
-      select 1 from group_members gm
-      where gm.group_id = groups.id and gm.user_id = auth.uid()
-    )
+    public.is_group_member(groups.id, auth.uid())
+    -- The creator's own group_members row is added in a separate query
+    -- right after this insert, not atomically with it -- without this,
+    -- the split-second between "group created" and "creator added as a
+    -- member" makes the brand new row briefly invisible to its own
+    -- creator, which Supabase reports as an RLS violation on the insert
+    -- itself (since insert+select() reads the row right back).
+    or groups.created_by = auth.uid()
   );
 drop policy if exists "groups_insert_any_authenticated" on groups;
 create policy "groups_insert_any_authenticated" on groups
@@ -399,21 +423,14 @@ create policy "groups_insert_any_authenticated" on groups
 drop policy if exists "groups_update_member" on groups;
 create policy "groups_update_member" on groups
   for update using (
-    exists (
-      select 1 from group_members gm
-      where gm.group_id = groups.id and gm.user_id = auth.uid()
-    )
+    public.is_group_member(groups.id, auth.uid())
+    or groups.created_by = auth.uid()
   );
 
 -- group_members policies
 drop policy if exists "group_members_select_member" on group_members;
 create policy "group_members_select_member" on group_members
-  for select using (
-    exists (
-      select 1 from group_members gm
-      where gm.group_id = group_members.group_id and gm.user_id = auth.uid()
-    )
-  );
+  for select using (public.is_group_member(group_members.group_id, auth.uid()));
 -- Three ways a row can legitimately be inserted here: you're adding
 -- yourself (accepting membership), you're the group's creator adding its
 -- very first members (before any members exist yet -- a plain "is an
@@ -424,10 +441,7 @@ create policy "group_members_insert" on group_members
   for insert with check (
     auth.uid() = user_id
     or exists (select 1 from groups g where g.id = group_id and g.created_by = auth.uid())
-    or exists (
-      select 1 from group_members gm
-      where gm.group_id = group_members.group_id and gm.user_id = auth.uid()
-    )
+    or public.is_group_member(group_members.group_id, auth.uid())
   );
 drop policy if exists "group_members_delete_self" on group_members;
 create policy "group_members_delete_self" on group_members
@@ -448,20 +462,12 @@ create table if not exists group_messages (
 alter table group_messages enable row level security;
 drop policy if exists "group_messages_select_member" on group_messages;
 create policy "group_messages_select_member" on group_messages
-  for select using (
-    exists (
-      select 1 from group_members gm
-      where gm.group_id = group_messages.group_id and gm.user_id = auth.uid()
-    )
-  );
+  for select using (public.is_group_member(group_messages.group_id, auth.uid()));
 drop policy if exists "group_messages_insert_member" on group_messages;
 create policy "group_messages_insert_member" on group_messages
   for insert with check (
     sender_id = auth.uid()
-    and exists (
-      select 1 from group_members gm
-      where gm.group_id = group_messages.group_id and gm.user_id = auth.uid()
-    )
+    and public.is_group_member(group_messages.group_id, auth.uid())
   );
 
 -- Per-member read tracking -- one row per (message, member) once that
@@ -478,8 +484,8 @@ create policy "group_message_reads_select_member" on group_message_reads
   for select using (
     exists (
       select 1 from group_messages gmsg
-      join group_members gm on gm.group_id = gmsg.group_id
-      where gmsg.id = group_message_reads.message_id and gm.user_id = auth.uid()
+      where gmsg.id = group_message_reads.message_id
+        and public.is_group_member(gmsg.group_id, auth.uid())
     )
   );
 drop policy if exists "group_message_reads_insert_own" on group_message_reads;
@@ -516,10 +522,8 @@ create policy "chat_media_select_group_member" on storage.objects
   for select using (
     bucket_id = 'chat-media'
     and (storage.foldername(name))[1] like 'group-%'
-    and exists (
-      select 1 from group_members gm
-      where gm.group_id = replace((storage.foldername(name))[1], 'group-', '')::uuid
-        and gm.user_id = auth.uid()
+    and public.is_group_member(
+      replace((storage.foldername(name))[1], 'group-', '')::uuid, auth.uid()
     )
   );
 drop policy if exists "chat_media_insert_group_member" on storage.objects;
@@ -527,9 +531,76 @@ create policy "chat_media_insert_group_member" on storage.objects
   for insert with check (
     bucket_id = 'chat-media'
     and (storage.foldername(name))[1] like 'group-%'
-    and exists (
-      select 1 from group_members gm
-      where gm.group_id = replace((storage.foldername(name))[1], 'group-', '')::uuid
-        and gm.user_id = auth.uid()
+    and public.is_group_member(
+      replace((storage.foldername(name))[1], 'group-', '')::uuid, auth.uid()
     )
   );
+
+-- ---------------------------------------------------------------------------
+-- Group photos. Reuses the existing public "avatars" bucket (a group photo
+-- isn't sensitive, same reasoning as personal profile pictures), stored
+-- under "group-{group_id}/photo.<ext>" instead of a user id folder. Any
+-- current member can change it -- consistent with how adding new members
+-- already works (any member, not just the creator).
+-- ---------------------------------------------------------------------------
+
+drop policy if exists "avatars_insert_group_member" on storage.objects;
+create policy "avatars_insert_group_member" on storage.objects
+  for insert with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] like 'group-%'
+    and public.is_group_member(
+      replace((storage.foldername(name))[1], 'group-', '')::uuid, auth.uid()
+    )
+  );
+drop policy if exists "avatars_update_group_member" on storage.objects;
+create policy "avatars_update_group_member" on storage.objects
+  for update using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] like 'group-%'
+    and public.is_group_member(
+      replace((storage.foldername(name))[1], 'group-', '')::uuid, auth.uid()
+    )
+  );
+
+-- ---------------------------------------------------------------------------
+-- Favoriting for Chats and Groups. The existing "favorites" table is for
+-- quick-dial calling contacts (by email) and stays as-is. This is a
+-- separate, simpler concept: marking a specific conversation or group as a
+-- favorite for quick access, per user (so if two people share a
+-- conversation, each can favorite it independently of the other).
+-- ---------------------------------------------------------------------------
+
+create table if not exists favorite_conversations (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  conversation_id uuid not null references conversations(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, conversation_id)
+);
+alter table favorite_conversations enable row level security;
+drop policy if exists "favorite_conversations_select_own" on favorite_conversations;
+create policy "favorite_conversations_select_own" on favorite_conversations
+  for select using (auth.uid() = user_id);
+drop policy if exists "favorite_conversations_insert_own" on favorite_conversations;
+create policy "favorite_conversations_insert_own" on favorite_conversations
+  for insert with check (auth.uid() = user_id);
+drop policy if exists "favorite_conversations_delete_own" on favorite_conversations;
+create policy "favorite_conversations_delete_own" on favorite_conversations
+  for delete using (auth.uid() = user_id);
+
+create table if not exists favorite_groups (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  group_id uuid not null references groups(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, group_id)
+);
+alter table favorite_groups enable row level security;
+drop policy if exists "favorite_groups_select_own" on favorite_groups;
+create policy "favorite_groups_select_own" on favorite_groups
+  for select using (auth.uid() = user_id);
+drop policy if exists "favorite_groups_insert_own" on favorite_groups;
+create policy "favorite_groups_insert_own" on favorite_groups
+  for insert with check (auth.uid() = user_id);
+drop policy if exists "favorite_groups_delete_own" on favorite_groups;
+create policy "favorite_groups_delete_own" on favorite_groups
+  for delete using (auth.uid() = user_id);

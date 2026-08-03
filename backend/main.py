@@ -557,6 +557,36 @@ class NotifyMessageBody(BaseModel):
     from_display: Optional[str] = None  # username, if the sender has one set -- falls back to their email
 
 
+async def is_conversation_muted(to_email: str, conversation_id: str) -> bool:
+    """Looks up the recipient's own mute preference for this conversation
+    (they can't be relied on to enforce this client-side, since it's the
+    *sender's* client asking us to push -- the check has to happen here)."""
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        profile_resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/profiles",
+            params={"email": f"eq.{to_email}", "select": "id"},
+            headers=_service_headers(),
+        )
+        profile_resp.raise_for_status()
+        profiles = profile_resp.json()
+        if not profiles:
+            return False
+        user_id = profiles[0]["id"]
+
+        prefs_resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/conversation_notification_prefs",
+            params={
+                "user_id": f"eq.{user_id}",
+                "conversation_id": f"eq.{conversation_id}",
+                "select": "muted",
+            },
+            headers=_service_headers(),
+        )
+        prefs_resp.raise_for_status()
+        prefs = prefs_resp.json()
+        return bool(prefs and prefs[0].get("muted"))
+
+
 @app.post("/push/notify-message")
 async def push_notify_message(body: NotifyMessageBody):
     """Called by the frontend right after it inserts a chat message into
@@ -572,6 +602,13 @@ async def push_notify_message(body: NotifyMessageBody):
     to_email = (body.to_email or "").lower()
     if not to_email or not body.conversation_id:
         return {"error": "missing to_email or conversation_id"}, 400
+    try:
+        if await is_conversation_muted(to_email, body.conversation_id):
+            return {"status": "muted"}
+    except httpx.HTTPError as e:
+        logger.warning(f"Could not check mute status for {to_email}: {e}")
+        # Fail open -- a missed mute check just means one extra notification,
+        # better than silently dropping real ones if this lookup ever breaks.
     await send_message_push(to_email, from_display, body.conversation_id, body.preview or "")
     return {"status": "sent"}
 

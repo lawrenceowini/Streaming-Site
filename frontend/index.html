@@ -424,6 +424,142 @@
         padding: 10px 14px;
       }
 
+      /* ---------------- Contact info panel ---------------- */
+      .contact-info-body {
+        padding: 8px 14px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+      .contact-info-avatar {
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        background: var(--accent-dim);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-family: var(--mono);
+        font-weight: 700;
+        overflow: hidden;
+        margin-bottom: 10px;
+      }
+      .contact-info-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .contact-info-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .contact-info-email {
+        font-size: 12px;
+        color: var(--text-dim);
+        font-family: var(--mono);
+        margin-top: 2px;
+        margin-bottom: 16px;
+      }
+      .contact-info-section-label {
+        width: 100%;
+        text-align: left;
+        font-size: 11px;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin: 16px 0 6px;
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+      .contact-action-row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: transparent;
+        border: none;
+        color: var(--text);
+        padding: 10px 4px;
+        font-size: 13px;
+        font-family: var(--sans);
+        cursor: pointer;
+        text-align: left;
+        border-radius: 8px;
+      }
+      .contact-action-row:hover {
+        background: var(--bg-panel-2);
+      }
+      .contact-action-row.danger {
+        color: var(--error);
+      }
+      .contact-action-icon {
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .contact-action-icon svg {
+        width: 16px;
+        height: 16px;
+      }
+      .settings-row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 4px;
+        font-size: 13px;
+        color: var(--text);
+      }
+      .settings-row input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+      .settings-row select {
+        background: var(--bg-panel-2);
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 5px 8px;
+        border-radius: 6px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .contact-media-grid {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+      }
+      .contact-media-grid img {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .contact-links-list {
+        width: 100%;
+        text-align: left;
+      }
+      .contact-links-list a {
+        display: block;
+        font-size: 12px;
+        color: var(--accent);
+        padding: 6px 4px;
+        border-bottom: 1px solid var(--line);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       /* ---------------- Calls hub: tab bar + panels ---------------- */
       .calls-hub {
         width: 100%;
@@ -2005,7 +2141,9 @@
                 ></path>
               </svg>
             </button>
-            <div class="hub-item-avatar" id="thread-avatar">?</div>
+            <div class="hub-item-avatar" id="thread-avatar" style="cursor: pointer">
+              ?
+            </div>
             <div class="thread-title" id="thread-title">Conversation</div>
           </div>
           <div class="thread-log" id="thread-log"></div>
@@ -2013,7 +2151,11 @@
             <span class="recording-dot"></span>
             <span id="thread-recording-time">0:00</span> Recording…
           </div>
-          <div class="chat-input-row">
+          <p class="hub-empty" id="thread-blocked-banner" style="display: none">
+            You've blocked this contact. Unblock them from contact info to
+            send messages.
+          </p>
+          <div class="chat-input-row" id="thread-input-row">
             <button id="thread-attach" title="Send a photo or file">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path
@@ -2040,6 +2182,83 @@
               autocomplete="off"
             />
             <button id="thread-send-btn">Send</button>
+          </div>
+        </div>
+
+        <!-- Contact info panel: opens when tapping the thread avatar -->
+        <div
+          id="contact-info-view"
+          style="display: none; flex-direction: column; height: 100%; overflow-y: auto"
+        >
+          <div class="thread-header">
+            <button
+              class="hub-icon-btn"
+              id="contact-info-back-btn"
+              title="Back"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"
+                ></path>
+              </svg>
+            </button>
+            <div class="thread-title">Contact info</div>
+          </div>
+
+          <div class="contact-info-body">
+            <div class="contact-info-avatar" id="contact-info-avatar">?</div>
+            <div class="contact-info-name" id="contact-info-name"></div>
+            <div class="contact-info-email" id="contact-info-email"></div>
+
+            <button class="contact-action-row" id="contact-fav-btn">
+              <span class="contact-action-icon" id="contact-fav-icon"></span>
+              <span id="contact-fav-label">Add to favorites</span>
+            </button>
+
+            <div class="contact-info-section-label">Notifications</div>
+            <label class="settings-row">
+              <span>Mute notifications</span>
+              <input type="checkbox" id="contact-mute-toggle" />
+            </label>
+            <label class="settings-row">
+              <span>Notification tone</span>
+              <select id="contact-tone-select">
+                <option value="default">Default</option>
+                <option value="chime">Chime</option>
+                <option value="ping">Ping</option>
+                <option value="marimba">Marimba</option>
+                <option value="none">Silent</option>
+              </select>
+            </label>
+
+            <div class="contact-info-section-label">Shared media &amp; links</div>
+            <div class="contact-media-grid" id="contact-media-grid"></div>
+            <div class="contact-links-list" id="contact-links-list"></div>
+            <p class="hub-empty" id="contact-media-empty">
+              No media or links shared yet.
+            </p>
+
+            <div class="contact-info-section-label">Danger zone</div>
+            <button class="contact-action-row danger" id="contact-block-btn">
+              <span class="contact-action-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  ></path>
+                </svg>
+              </span>
+              <span id="contact-block-label">Block</span>
+            </button>
+            <button class="contact-action-row danger" id="contact-clear-btn">
+              <span class="contact-action-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M9 3v1H4v2h16V4h-5V3H9zM6 8v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8H6zm3 3h2v7H9v-7zm4 0h2v7h-2v-7z"
+                  ></path>
+                </svg>
+              </span>
+              <span>Clear chat</span>
+            </button>
           </div>
         </div>
       </div>
@@ -3703,12 +3922,14 @@
           .on(
             "postgres_changes",
             { event: "INSERT", schema: "public", table: "messages" },
-            (payload) => {
+            async (payload) => {
               if (payload.new.sender_id !== myId && payload.new.status === "sent") {
                 sb.from("messages")
                   .update({ status: "delivered" })
                   .eq("id", payload.new.id)
                   .eq("status", "sent");
+                const prefs = await getConversationPrefs(payload.new.conversation_id);
+                if (!prefs.muted) playChatTone(prefs.custom_tone);
               }
             },
           )
@@ -3791,8 +4012,11 @@
         return conv;
       }
 
+      let currentThreadOtherProfile = null; // { username, email, avatar_url } for whoever's on the other side of the open 1:1 thread
+
       async function openConversationThread(conv) {
         currentThreadConv = conv;
+        currentThreadOtherProfile = null;
         const myId = currentSession.user.id;
         const otherId = conv.user_a_id === myId ? conv.user_b_id : conv.user_a_id;
         const fallbackDisplay =
@@ -3806,6 +4030,7 @@
         $("thread-title").textContent = fallbackDisplay;
         $("thread-avatar").textContent = initialsFor(fallbackDisplay);
         $("chats-list-view").style.display = "none";
+        $("contact-info-view").style.display = "none";
         $("chat-thread-view").style.display = "flex";
 
         sb.from("profiles")
@@ -3814,6 +4039,7 @@
           .maybeSingle()
           .then(({ data: otherProfile }) => {
             if (!otherProfile || currentThreadConv !== conv) return; // thread changed while this was in flight
+            currentThreadOtherProfile = otherProfile;
             const display = otherProfile.username || otherProfile.email || fallbackDisplay;
             $("thread-title").textContent = display;
             if (otherProfile.avatar_url) {
@@ -3826,6 +4052,21 @@
         await loadThreadMessages(conv.id);
         await markConversationRead(conv.id);
         subscribeToThread(conv.id);
+        await updateThreadBlockedState(otherId);
+      }
+      $("thread-avatar").onclick = () => openContactInfo();
+
+      async function updateThreadBlockedState(otherId) {
+        const myId = currentSession.user.id;
+        const { data: blockRow } = await sb
+          .from("blocked_users")
+          .select("blocked_id")
+          .eq("blocker_id", myId)
+          .eq("blocked_id", otherId)
+          .maybeSingle();
+        const blocked = !!blockRow;
+        $("thread-blocked-banner").style.display = blocked ? "block" : "none";
+        $("thread-input-row").style.display = blocked ? "none" : "flex";
       }
 
       async function loadThreadMessages(conversationId) {
@@ -3988,7 +4229,244 @@
       }
       $("thread-back-btn").onclick = closeConversationThread;
 
-      // Shared by both a text message and a media message: bumps the
+      /* ================= Contact info panel ================= */
+      const CHAT_TONES = {
+        default: { freqs: [700], durMs: 120 },
+        chime: { freqs: [880, 1108], durMs: 160 },
+        ping: { freqs: [1200], durMs: 90 },
+        marimba: { freqs: [523, 659], durMs: 140 },
+        none: null,
+      };
+      // Only affects the live in-app sound while the app is open -- there's
+      // no web API to set a custom sound for an OS push notification (same
+      // hard platform limit as the incoming-call ringtone), so a muted push
+      // still plays whatever the OS/browser's own default sound is if this
+      // ever fires outside our control.
+      function playChatTone(toneName) {
+        const tone = CHAT_TONES[toneName] || CHAT_TONES.default;
+        if (!tone) return;
+        try {
+          const ctx = getAudioCtx();
+          const now = ctx.currentTime;
+          const master = ctx.createGain();
+          master.gain.setValueAtTime(0, now);
+          master.gain.linearRampToValueAtTime(0.15, now + 0.01);
+          master.gain.linearRampToValueAtTime(0, now + tone.durMs / 1000);
+          master.connect(ctx.destination);
+          tone.freqs.forEach((f) => {
+            const osc = ctx.createOscillator();
+            osc.type = "sine";
+            osc.frequency.value = f;
+            osc.connect(master);
+            osc.start(now);
+            osc.stop(now + tone.durMs / 1000);
+          });
+        } catch (e) {
+          // Autoplay blocked before any user gesture -- fine, this is just
+          // a nice-to-have live sound, not something worth erroring over.
+        }
+      }
+
+      const conversationPrefsCache = new Map(); // conversation_id -> { muted, custom_tone }
+      async function getConversationPrefs(conversationId) {
+        if (conversationPrefsCache.has(conversationId)) return conversationPrefsCache.get(conversationId);
+        const { data } = await sb
+          .from("conversation_notification_prefs")
+          .select("muted,custom_tone")
+          .eq("user_id", currentSession.user.id)
+          .eq("conversation_id", conversationId)
+          .maybeSingle();
+        const prefs = data || { muted: false, custom_tone: "default" };
+        conversationPrefsCache.set(conversationId, prefs);
+        return prefs;
+      }
+      async function saveConversationPrefs(conversationId, patch) {
+        const current = await getConversationPrefs(conversationId);
+        const next = { ...current, ...patch };
+        conversationPrefsCache.set(conversationId, next);
+        await sb.from("conversation_notification_prefs").upsert(
+          { user_id: currentSession.user.id, conversation_id: conversationId, ...next },
+          { onConflict: "user_id,conversation_id" },
+        );
+      }
+
+      function extractLinks(text) {
+        const matches = (text || "").match(/https?:\/\/[^\s]+/g) || [];
+        return matches;
+      }
+
+      async function openContactInfo() {
+        if (!currentThreadConv) return;
+        const conv = currentThreadConv;
+        const myId = currentSession.user.id;
+        const otherId = conv.user_a_id === myId ? conv.user_b_id : conv.user_a_id;
+        const fallbackDisplay =
+          conv.user_a_id === myId
+            ? conv.user_b_username || conv.user_b_email
+            : conv.user_a_username || conv.user_a_email;
+        const otherEmail = conv.user_a_id === myId ? conv.user_b_email : conv.user_a_email;
+        const profile = currentThreadOtherProfile;
+        const display = (profile && (profile.username || profile.email)) || fallbackDisplay;
+
+        $("contact-info-name").textContent = display;
+        $("contact-info-email").textContent = (profile && profile.email) || otherEmail;
+        if (profile && profile.avatar_url) {
+          $("contact-info-avatar").innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="">`;
+        } else {
+          $("contact-info-avatar").textContent = initialsFor(display);
+        }
+
+        $("chat-thread-view").style.display = "none";
+        $("contact-info-view").style.display = "flex";
+
+        // Favorite status
+        const { data: favRow } = await sb
+          .from("favorite_conversations")
+          .select("conversation_id")
+          .eq("user_id", myId)
+          .eq("conversation_id", conv.id)
+          .maybeSingle();
+        updateContactFavButton(!!favRow);
+
+        // Block status
+        const { data: blockRow } = await sb
+          .from("blocked_users")
+          .select("blocked_id")
+          .eq("blocker_id", myId)
+          .eq("blocked_id", otherId)
+          .maybeSingle();
+        updateContactBlockButton(!!blockRow);
+
+        // Notification prefs
+        const prefs = await getConversationPrefs(conv.id);
+        $("contact-mute-toggle").checked = prefs.muted;
+        $("contact-tone-select").value = prefs.custom_tone;
+
+        // Shared media & links
+        const { data: messages } = await sb
+          .from("messages")
+          .select("body,media_path,media_mime")
+          .eq("conversation_id", conv.id)
+          .order("created_at", { ascending: false })
+          .limit(200);
+        await renderContactMedia(messages || []);
+      }
+      $("contact-info-back-btn").onclick = () => {
+        $("contact-info-view").style.display = "none";
+        $("chat-thread-view").style.display = "flex";
+      };
+
+      function updateContactFavButton(isFav) {
+        $("contact-fav-icon").innerHTML = ICONS.star;
+        $("contact-fav-icon").style.color = isFav ? "var(--accent)" : "var(--text-dim)";
+        $("contact-fav-label").textContent = isFav ? "Remove from favorites" : "Add to favorites";
+      }
+      $("contact-fav-btn").onclick = async () => {
+        if (!currentThreadConv) return;
+        const conv = currentThreadConv;
+        const myId = currentSession.user.id;
+        const { data: existing } = await sb
+          .from("favorite_conversations")
+          .select("conversation_id")
+          .eq("user_id", myId)
+          .eq("conversation_id", conv.id)
+          .maybeSingle();
+        if (existing) {
+          await sb.from("favorite_conversations").delete().eq("user_id", myId).eq("conversation_id", conv.id);
+          updateContactFavButton(false);
+        } else {
+          await sb.from("favorite_conversations").insert({ user_id: myId, conversation_id: conv.id });
+          updateContactFavButton(true);
+        }
+      };
+
+      $("contact-mute-toggle").addEventListener("change", async (e) => {
+        if (!currentThreadConv) return;
+        await saveConversationPrefs(currentThreadConv.id, { muted: e.target.checked });
+      });
+      $("contact-tone-select").addEventListener("change", async (e) => {
+        if (!currentThreadConv) return;
+        await saveConversationPrefs(currentThreadConv.id, { custom_tone: e.target.value });
+        playChatTone(e.target.value); // preview it right away
+      });
+
+      function updateContactBlockButton(isBlocked) {
+        $("contact-block-label").textContent = isBlocked ? "Unblock" : "Block";
+      }
+      $("contact-block-btn").onclick = async () => {
+        if (!currentThreadConv) return;
+        const conv = currentThreadConv;
+        const myId = currentSession.user.id;
+        const otherId = conv.user_a_id === myId ? conv.user_b_id : conv.user_a_id;
+        const { data: existing } = await sb
+          .from("blocked_users")
+          .select("blocked_id")
+          .eq("blocker_id", myId)
+          .eq("blocked_id", otherId)
+          .maybeSingle();
+        if (existing) {
+          await sb.from("blocked_users").delete().eq("blocker_id", myId).eq("blocked_id", otherId);
+          updateContactBlockButton(false);
+        } else {
+          if (!confirm("Block this contact? They won't be able to send you new messages.")) return;
+          await sb.from("blocked_users").insert({ blocker_id: myId, blocked_id: otherId });
+          updateContactBlockButton(true);
+        }
+        await updateThreadBlockedState(otherId);
+      };
+
+      $("contact-clear-btn").onclick = async () => {
+        if (!currentThreadConv) return;
+        const conv = currentThreadConv;
+        if (
+          !confirm(
+            "Clear this chat's history? This deletes every message for both people in the conversation -- it can't be undone.",
+          )
+        )
+          return;
+        const { error } = await sb.from("messages").delete().eq("conversation_id", conv.id);
+        if (error) {
+          alert("Could not clear that chat: " + error.message);
+          return;
+        }
+        $("thread-log").innerHTML = "";
+        await sb
+          .from("conversations")
+          .update({ last_message_preview: null, last_message_at: null })
+          .eq("id", conv.id);
+      };
+
+      async function renderContactMedia(messages) {
+        const mediaMessages = messages.filter((m) => m.media_path && m.media_mime);
+        const imageMessages = mediaMessages.filter((m) => m.media_mime.startsWith("image/"));
+        const links = messages.flatMap((m) => extractLinks(m.body));
+
+        const grid = $("contact-media-grid");
+        grid.innerHTML = "";
+        for (const m of imageMessages.slice(0, 12)) {
+          const url = await signedMediaUrl(m.media_path);
+          if (!url) continue;
+          const img = document.createElement("img");
+          img.src = url;
+          img.onclick = () => window.open(url, "_blank", "noopener");
+          grid.appendChild(img);
+        }
+
+        const linksList = $("contact-links-list");
+        linksList.innerHTML = "";
+        for (const link of links.slice(0, 20)) {
+          const a = document.createElement("a");
+          a.href = link;
+          a.target = "_blank";
+          a.rel = "noopener";
+          a.textContent = link;
+          linksList.appendChild(a);
+        }
+
+        $("contact-media-empty").style.display = imageMessages.length || links.length ? "none" : "block";
+      }
+
+
       // conversation's preview/timestamp and best-effort pings the
       // recipient's push notification.
       async function finishSendingMessage(conv, previewText) {

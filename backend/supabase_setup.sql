@@ -604,3 +604,77 @@ create policy "favorite_groups_insert_own" on favorite_groups
 drop policy if exists "favorite_groups_delete_own" on favorite_groups;
 create policy "favorite_groups_delete_own" on favorite_groups
   for delete using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Contact info panel (Phase B): blocking, per-chat notification
+-- preferences (mute + tone), and clearing a chat's history.
+-- ---------------------------------------------------------------------------
+
+create table if not exists blocked_users (
+  blocker_id uuid not null references auth.users(id) on delete cascade,
+  blocked_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id)
+);
+alter table blocked_users enable row level security;
+drop policy if exists "blocked_users_select_own" on blocked_users;
+create policy "blocked_users_select_own" on blocked_users
+  for select using (auth.uid() = blocker_id);
+drop policy if exists "blocked_users_insert_own" on blocked_users;
+create policy "blocked_users_insert_own" on blocked_users
+  for insert with check (auth.uid() = blocker_id);
+drop policy if exists "blocked_users_delete_own" on blocked_users;
+create policy "blocked_users_delete_own" on blocked_users
+  for delete using (auth.uid() = blocker_id);
+
+-- Enforces blocking at the database level, not just in the UI: if the
+-- *other* participant in a conversation has blocked me, my inserts into it
+-- are rejected outright, regardless of what client code does.
+drop policy if exists "messages_insert_participant" on messages;
+create policy "messages_insert_participant" on messages
+  for insert with check (
+    sender_id = auth.uid()
+    and exists (
+      select 1 from conversations c
+      where c.id = messages.conversation_id
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+        and not exists (
+          select 1 from blocked_users bu
+          where bu.blocker_id = (case when c.user_a_id = auth.uid() then c.user_b_id else c.user_a_id end)
+            and bu.blocked_id = auth.uid()
+        )
+    )
+  );
+
+-- "Clear chat" deletes the shared message history for both people (this
+-- app doesn't keep per-device copies of messages, so there's no way to
+-- clear it on just one side without a much bigger data-model change).
+drop policy if exists "messages_delete_participant" on messages;
+create policy "messages_delete_participant" on messages
+  for delete using (
+    exists (
+      select 1 from conversations c
+      where c.id = messages.conversation_id
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+    )
+  );
+
+-- Per-chat notification preferences: whether to be alerted at all, and
+-- which tone to play. Absence of a row means "default: on, default tone".
+create table if not exists conversation_notification_prefs (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  conversation_id uuid not null references conversations(id) on delete cascade,
+  muted boolean not null default false,
+  custom_tone text not null default 'default',
+  primary key (user_id, conversation_id)
+);
+alter table conversation_notification_prefs enable row level security;
+drop policy if exists "conv_notif_prefs_select_own" on conversation_notification_prefs;
+create policy "conv_notif_prefs_select_own" on conversation_notification_prefs
+  for select using (auth.uid() = user_id);
+drop policy if exists "conv_notif_prefs_insert_own" on conversation_notification_prefs;
+create policy "conv_notif_prefs_insert_own" on conversation_notification_prefs
+  for insert with check (auth.uid() = user_id);
+drop policy if exists "conv_notif_prefs_update_own" on conversation_notification_prefs;
+create policy "conv_notif_prefs_update_own" on conversation_notification_prefs
+  for update using (auth.uid() = user_id);

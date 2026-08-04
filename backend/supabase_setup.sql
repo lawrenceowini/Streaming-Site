@@ -678,3 +678,30 @@ create policy "conv_notif_prefs_insert_own" on conversation_notification_prefs
 drop policy if exists "conv_notif_prefs_update_own" on conversation_notification_prefs;
 create policy "conv_notif_prefs_update_own" on conversation_notification_prefs
   for update using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Group info panel (Phase C): description, removing members (not just
+-- leaving yourself), and creator-only chat clearing.
+-- ---------------------------------------------------------------------------
+
+alter table groups add column if not exists description text;
+
+-- Broadens the earlier self-only leave policy: consistent with how adding
+-- members already works (any member, not just the creator), any current
+-- member can also remove someone else, not only themselves.
+drop policy if exists "group_members_delete_self" on group_members;
+drop policy if exists "group_members_delete_by_member" on group_members;
+create policy "group_members_delete_by_member" on group_members
+  for delete using (public.is_group_member(group_members.group_id, auth.uid()));
+
+-- Clearing a group's history is more consequential than a 1:1 chat (it
+-- affects everyone in the group, not just the two of you), so this is
+-- restricted to whoever created the group.
+drop policy if exists "group_messages_delete_creator" on group_messages;
+create policy "group_messages_delete_creator" on group_messages
+  for delete using (
+    exists (
+      select 1 from groups g
+      where g.id = group_messages.group_id and g.created_by = auth.uid()
+    )
+  );

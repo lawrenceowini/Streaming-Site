@@ -559,6 +559,43 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .group-description-input {
+        width: 100%;
+        background: var(--bg-panel-2);
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-family: var(--sans);
+        font-size: 12.5px;
+        resize: none;
+        margin-bottom: 14px;
+      }
+      .group-description-input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .group-member-remove-btn {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: var(--text-dim);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .group-member-remove-btn:hover {
+        color: var(--error);
+        background: var(--bg-panel-2);
+      }
+      .group-member-remove-btn svg {
+        width: 13px;
+        height: 13px;
+      }
 
       /* ---------------- Calls hub: tab bar + panels ---------------- */
       .calls-hub {
@@ -2304,39 +2341,20 @@
                 ></path>
               </svg>
             </button>
-            <div class="group-avatar-wrap">
-              <div class="hub-item-avatar" id="group-thread-avatar">?</div>
-              <button
-                class="group-avatar-edit-btn"
-                id="group-avatar-edit-btn"
-                title="Change group photo"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3zm3 15a5 5 0 1 1 5-5 5 5 0 0 1-5 5z"
-                  ></path>
-                </svg>
-              </button>
-              <input
-                type="file"
-                id="group-avatar-file-input"
-                accept="image/*"
-                style="display: none"
-              />
-            </div>
-            <div class="thread-title" id="group-thread-title">Group</div>
-            <button
-              class="hub-icon-btn"
-              id="group-members-btn"
-              title="Members"
-              style="margin-left: auto"
+            <div
+              class="hub-item-avatar"
+              id="group-thread-avatar"
+              style="cursor: pointer"
             >
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
-                ></path>
-              </svg>
-            </button>
+              ?
+            </div>
+            <div
+              class="thread-title"
+              id="group-thread-title"
+              style="cursor: pointer"
+            >
+              Group
+            </div>
           </div>
           <div class="thread-log" id="group-thread-log"></div>
           <div class="recording-indicator" id="group-recording-indicator">
@@ -2366,6 +2384,107 @@
               autocomplete="off"
             />
             <button id="group-thread-send-btn">Send</button>
+          </div>
+        </div>
+
+        <!-- Group info panel: opens when tapping the group avatar or name -->
+        <div
+          id="group-info-view"
+          style="display: none; flex-direction: column; height: 100%; overflow-y: auto"
+        >
+          <div class="thread-header">
+            <button class="hub-icon-btn" id="group-info-back-btn" title="Back">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"
+                ></path>
+              </svg>
+            </button>
+            <div class="thread-title">Group info</div>
+          </div>
+
+          <div class="contact-info-body">
+            <div class="profile-avatar-wrap">
+              <div class="contact-info-avatar" id="group-info-avatar">?</div>
+              <button
+                class="avatar-edit-btn"
+                id="group-info-avatar-edit-btn"
+                title="Change group photo"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3zm3 15a5 5 0 1 1 5-5 5 5 0 0 1-5 5z"
+                  ></path>
+                </svg>
+              </button>
+              <input
+                type="file"
+                id="group-info-avatar-file-input"
+                accept="image/*"
+                style="display: none"
+              />
+            </div>
+            <div class="contact-info-name" id="group-info-name"></div>
+
+            <textarea
+              id="group-info-description"
+              class="group-description-input"
+              placeholder="Add a group description…"
+              rows="2"
+            ></textarea>
+
+            <button class="contact-action-row" id="group-fav-btn">
+              <span class="contact-action-icon" id="group-fav-icon"></span>
+              <span id="group-fav-label">Add to favorites</span>
+            </button>
+
+            <div class="contact-info-section-label" id="group-members-label">
+              Members
+            </div>
+            <div class="favorite-add-row">
+              <input
+                type="text"
+                id="group-info-add-member"
+                placeholder="Add member by username"
+              />
+              <button class="ghost-btn" id="group-info-add-member-btn">
+                + Add
+              </button>
+            </div>
+            <div id="group-members-list"></div>
+
+            <div class="contact-info-section-label">Shared media &amp; links</div>
+            <div class="contact-media-grid" id="group-media-grid"></div>
+            <div class="contact-links-list" id="group-links-list"></div>
+            <p class="hub-empty" id="group-media-empty">
+              No media or links shared yet.
+            </p>
+
+            <div class="contact-info-section-label">Danger zone</div>
+            <button
+              class="contact-action-row danger"
+              id="group-clear-btn"
+              style="display: none"
+            >
+              <span class="contact-action-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M9 3v1H4v2h16V4h-5V3H9zM6 8v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8H6zm3 3h2v7H9v-7zm4 0h2v7h-2v-7z"
+                  ></path>
+                </svg>
+              </span>
+              <span>Clear chat</span>
+            </button>
+            <button class="contact-action-row danger" id="group-exit-btn">
+              <span class="contact-action-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M10 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h6v-2H5V5h5V3zm4.29 3.29-1.29 1.29L15.59 10H8v2h7.59l-2.59 2.42 1.29 1.29L19.58 11z"
+                  ></path>
+                </svg>
+              </span>
+              <span>Exit group</span>
+            </button>
           </div>
         </div>
       </div>
@@ -4852,17 +4971,20 @@
           $("group-thread-avatar").textContent = initialsFor(group.name);
         }
         $("groups-list-view").style.display = "none";
+        $("group-info-view").style.display = "none";
         $("group-thread-view").style.display = "flex";
 
         await loadGroupMessages(group.id);
         await markGroupMessagesRead(group.id);
         subscribeToGroupThread(group.id);
       }
+      $("group-thread-avatar").onclick = () => openGroupInfo();
+      $("group-thread-title").onclick = () => openGroupInfo();
 
-      $("group-avatar-edit-btn").onclick = () => $("group-avatar-file-input").click();
-      $("group-avatar-file-input").addEventListener("change", async () => {
-        const file = $("group-avatar-file-input").files[0];
-        $("group-avatar-file-input").value = "";
+      $("group-info-avatar-edit-btn").onclick = () => $("group-info-avatar-file-input").click();
+      $("group-info-avatar-file-input").addEventListener("change", async () => {
+        const file = $("group-info-avatar-file-input").files[0];
+        $("group-info-avatar-file-input").value = "";
         if (!file || !currentGroupThread) return;
         if (!file.type.startsWith("image/")) {
           alert("Please choose an image file.");
@@ -4873,7 +4995,7 @@
           return;
         }
         const group = currentGroupThread;
-        $("group-avatar-edit-btn").disabled = true;
+        $("group-info-avatar-edit-btn").disabled = true;
         try {
           const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
           const path = `group-${group.id}/photo.${ext}`;
@@ -4901,10 +5023,214 @@
           }
           currentGroupThread.avatar_url = avatarUrl;
           $("group-thread-avatar").innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="">`;
+          $("group-info-avatar").innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="">`;
         } finally {
-          $("group-avatar-edit-btn").disabled = false;
+          $("group-info-avatar-edit-btn").disabled = false;
         }
       });
+
+      /* ================= Group info panel ================= */
+      async function openGroupInfo() {
+        if (!currentGroupThread) return;
+        const group = currentGroupThread;
+        const myId = currentSession.user.id;
+
+        $("group-info-name").textContent = group.name;
+        $("group-info-description").value = group.description || "";
+        if (group.avatar_url) {
+          $("group-info-avatar").innerHTML = `<img src="${escapeHtml(group.avatar_url)}" alt="">`;
+        } else {
+          $("group-info-avatar").textContent = initialsFor(group.name);
+        }
+
+        // Only the creator can clear the group's history -- more
+        // consequential than a 1:1 clear since it affects every member.
+        $("group-clear-btn").style.display = group.created_by === myId ? "flex" : "none";
+
+        $("group-thread-view").style.display = "none";
+        $("group-info-view").style.display = "flex";
+
+        const { data: favRow } = await sb
+          .from("favorite_groups")
+          .select("group_id")
+          .eq("user_id", myId)
+          .eq("group_id", group.id)
+          .maybeSingle();
+        updateGroupFavButton(!!favRow);
+
+        await renderGroupMembersList(group);
+
+        const { data: messages } = await sb
+          .from("group_messages")
+          .select("body,media_path,media_mime")
+          .eq("group_id", group.id)
+          .order("created_at", { ascending: false })
+          .limit(200);
+        await renderGroupMedia(messages || []);
+      }
+      $("group-info-back-btn").onclick = () => {
+        $("group-info-view").style.display = "none";
+        $("group-thread-view").style.display = "flex";
+      };
+
+      function updateGroupFavButton(isFav) {
+        $("group-fav-icon").innerHTML = ICONS.star;
+        $("group-fav-icon").style.color = isFav ? "var(--accent)" : "var(--text-dim)";
+        $("group-fav-label").textContent = isFav ? "Remove from favorites" : "Add to favorites";
+      }
+      $("group-fav-btn").onclick = async () => {
+        if (!currentGroupThread) return;
+        const group = currentGroupThread;
+        const myId = currentSession.user.id;
+        const { data: existing } = await sb
+          .from("favorite_groups")
+          .select("group_id")
+          .eq("user_id", myId)
+          .eq("group_id", group.id)
+          .maybeSingle();
+        if (existing) {
+          await sb.from("favorite_groups").delete().eq("user_id", myId).eq("group_id", group.id);
+          updateGroupFavButton(false);
+        } else {
+          await sb.from("favorite_groups").insert({ user_id: myId, group_id: group.id });
+          updateGroupFavButton(true);
+        }
+      };
+
+      $("group-info-description").addEventListener("blur", async () => {
+        if (!currentGroupThread) return;
+        const description = $("group-info-description").value.trim();
+        currentGroupThread.description = description;
+        await sb.from("groups").update({ description }).eq("id", currentGroupThread.id);
+      });
+
+      async function renderGroupMembersList(group) {
+        const { data: members } = await sb.from("group_members").select("user_id").eq("group_id", group.id);
+        const ids = (members || []).map((m) => m.user_id);
+        const profileMap = await batchLookupProfilesById(ids);
+        $("group-members-label").textContent = `Members (${ids.length})`;
+
+        const list = $("group-members-list");
+        list.innerHTML = "";
+        const myId = currentSession.user.id;
+        for (const id of ids) {
+          const profile = profileMap[id];
+          const display = (profile && (profile.username || profile.email)) || "Unknown";
+          const item = document.createElement("div");
+          item.className = "hub-item";
+          item.innerHTML = `
+            <div class="hub-item-avatar">${profile && profile.avatar_url ? `<img src="${escapeHtml(profile.avatar_url)}" alt="">` : escapeHtml(initialsFor(display))}</div>
+            <div class="hub-item-body">
+              <div class="hub-item-title">${escapeHtml(display)}${id === myId ? " (you)" : ""}</div>
+            </div>
+            ${
+              id !== myId
+                ? `<button class="group-member-remove-btn" title="Remove from group">${ICONS.close}</button>`
+                : ""
+            }
+          `;
+          const removeBtn = item.querySelector(".group-member-remove-btn");
+          if (removeBtn) {
+            removeBtn.addEventListener("click", async () => {
+              if (!confirm(`Remove ${display} from this group?`)) return;
+              await sb.from("group_members").delete().eq("group_id", group.id).eq("user_id", id);
+              await renderGroupMembersList(group);
+            });
+          }
+          list.appendChild(item);
+        }
+      }
+      $("group-info-add-member-btn").onclick = async () => {
+        if (!currentGroupThread) return;
+        const uname = $("group-info-add-member").value.trim();
+        if (!uname) return;
+        const { data: profile } = await sb
+          .from("profiles")
+          .select("id")
+          .ilike("username", uname)
+          .maybeSingle();
+        if (!profile) {
+          alert("No account found with that username.");
+          return;
+        }
+        const { error } = await sb
+          .from("group_members")
+          .insert({ group_id: currentGroupThread.id, user_id: profile.id });
+        if (error) {
+          alert("Could not add that member: " + error.message);
+          return;
+        }
+        $("group-info-add-member").value = "";
+        await renderGroupMembersList(currentGroupThread);
+      };
+
+      async function renderGroupMedia(messages) {
+        const imageMessages = messages.filter(
+          (m) => m.media_path && m.media_mime && m.media_mime.startsWith("image/"),
+        );
+        const links = messages.flatMap((m) => extractLinks(m.body));
+
+        const grid = $("group-media-grid");
+        grid.innerHTML = "";
+        for (const m of imageMessages.slice(0, 12)) {
+          const url = await signedMediaUrl(m.media_path);
+          if (!url) continue;
+          const img = document.createElement("img");
+          img.src = url;
+          img.onclick = () => window.open(url, "_blank", "noopener");
+          grid.appendChild(img);
+        }
+
+        const linksList = $("group-links-list");
+        linksList.innerHTML = "";
+        for (const link of links.slice(0, 20)) {
+          const a = document.createElement("a");
+          a.href = link;
+          a.target = "_blank";
+          a.rel = "noopener";
+          a.textContent = link;
+          linksList.appendChild(a);
+        }
+
+        $("group-media-empty").style.display = imageMessages.length || links.length ? "none" : "block";
+      }
+
+      $("group-clear-btn").onclick = async () => {
+        if (!currentGroupThread) return;
+        const group = currentGroupThread;
+        if (
+          !confirm(
+            "Clear this group's history for everyone? This deletes every message in the group -- it can't be undone.",
+          )
+        )
+          return;
+        const { error } = await sb.from("group_messages").delete().eq("group_id", group.id);
+        if (error) {
+          alert("Could not clear that chat: " + error.message);
+          return;
+        }
+        $("group-thread-log").innerHTML = "";
+      };
+
+      $("group-exit-btn").onclick = async () => {
+        if (!currentGroupThread) return;
+        const group = currentGroupThread;
+        if (!confirm(`Leave "${group.name}"? You'll need to be re-added to rejoin.`)) return;
+        const myId = currentSession.user.id;
+        const { error } = await sb.from("group_members").delete().eq("group_id", group.id).eq("user_id", myId);
+        if (error) {
+          alert("Could not leave that group: " + error.message);
+          return;
+        }
+        if (groupThreadChannel) {
+          sb.removeChannel(groupThreadChannel);
+          groupThreadChannel = null;
+        }
+        currentGroupThread = null;
+        $("group-info-view").style.display = "none";
+        $("groups-list-view").style.display = "flex";
+        loadGroups();
+      };
 
       async function loadGroupMessages(groupId) {
         const { data, error } = await sb
@@ -5211,34 +5537,6 @@
           $("group-recording-indicator"),
           sendGroupVoiceMessage,
         );
-
-      $("group-members-btn").onclick = async () => {
-        if (!currentGroupThread) return;
-        const group = currentGroupThread;
-        const { data: members } = await sb.from("group_members").select("user_id").eq("group_id", group.id);
-        const ids = (members || []).map((m) => m.user_id);
-        const { data: profiles } = await sb.from("profiles").select("username,email").in("id", ids);
-        const names = (profiles || []).map((p) => p.username || p.email).join("\n");
-        const addMore = confirm(`Members:\n${names}\n\nAdd someone new?`);
-        if (!addMore) return;
-        const uname = prompt("Username to add:");
-        if (!uname) return;
-        const { data: profile } = await sb
-          .from("profiles")
-          .select("id")
-          .ilike("username", uname.trim())
-          .maybeSingle();
-        if (!profile) {
-          alert("No account found with that username.");
-          return;
-        }
-        const { error } = await sb.from("group_members").insert({ group_id: group.id, user_id: profile.id });
-        if (error) {
-          alert("Could not add that member: " + error.message);
-          return;
-        }
-        alert(`Added ${uname}.`);
-      };
 
       async function openGroupFromDeepLink(groupId) {
         const { data: group, error } = await sb.from("groups").select("*").eq("id", groupId).maybeSingle();

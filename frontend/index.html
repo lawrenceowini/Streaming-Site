@@ -2094,9 +2094,19 @@
          the app keeps its original single-column mobile behavior where
          list/thread/info replace each other in place. */
       @media (min-width: 900px) {
+        html,
+        body {
+          height: 100vh;
+          overflow: hidden;
+        }
+        body {
+          /* footer still gets breathing room without needing page scroll to reach it */
+          padding-bottom: 24px;
+        }
         .calls-hub {
           max-width: 1200px;
-          height: 80vh;
+          flex: 1 1 auto;
+          min-height: 0;
           max-height: 860px;
           margin-bottom: 24px;
         }

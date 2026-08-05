@@ -846,6 +846,71 @@
         flex-shrink: 0;
       }
 
+      .list-search-row {
+        position: relative;
+        margin-bottom: 10px;
+      }
+      .list-search-row input {
+        width: 100%;
+        box-sizing: border-box;
+        background: var(--bg-panel-2);
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 9px 10px 9px 32px;
+        border-radius: 18px;
+        font-family: var(--sans);
+        font-size: 12.5px;
+      }
+      .list-search-row input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .list-search-icon {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 14px;
+        height: 14px;
+        color: var(--text-dim);
+        pointer-events: none;
+      }
+
+      .list-context-menu {
+        position: fixed;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px;
+        min-width: 190px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        z-index: 60;
+        display: flex;
+        flex-direction: column;
+      }
+      .list-context-menu-item {
+        text-align: left;
+        background: transparent;
+        border: none;
+        color: var(--text);
+        padding: 8px 10px;
+        font-size: 12.5px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-family: var(--sans);
+      }
+      .list-context-menu-item:hover {
+        background: var(--bg-panel-2);
+      }
+      .list-context-menu-item.danger {
+        color: var(--error);
+      }
+      .list-context-menu-sep {
+        height: 1px;
+        background: var(--line);
+        margin: 4px 2px;
+      }
+
       .schedule-form {
         margin-bottom: 14px;
         padding-bottom: 14px;
@@ -2497,6 +2562,19 @@
             />
             <button class="ghost-btn" id="new-chat-btn">+ Chat</button>
           </div>
+          <div class="list-search-row">
+            <svg class="list-search-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14"
+              ></path>
+            </svg>
+            <input
+              type="text"
+              id="chats-search-input"
+              placeholder="Search chats"
+              autocomplete="off"
+            />
+          </div>
           <div class="pill-row">
             <button class="pill-btn active" data-chats-filter="all">
               All
@@ -2506,7 +2584,7 @@
             </button>
           </div>
           <div id="conversations-list"></div>
-          <p class="hub-empty" id="conversations-empty">
+          <p class="hub-empty" id="conversations-empty" data-default-text="No conversations yet — message anyone with an account.">
             No conversations yet — message anyone with an account.
           </p>
         </div>
@@ -2690,6 +2768,19 @@
             />
             <button class="ghost-btn" id="new-group-btn">+ Group</button>
           </div>
+          <div class="list-search-row">
+            <svg class="list-search-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14"
+              ></path>
+            </svg>
+            <input
+              type="text"
+              id="groups-search-input"
+              placeholder="Search groups"
+              autocomplete="off"
+            />
+          </div>
           <div class="pill-row">
             <button class="pill-btn active" data-groups-filter="all">
               All
@@ -2699,7 +2790,7 @@
             </button>
           </div>
           <div id="groups-list"></div>
-          <p class="hub-empty" id="groups-empty">
+          <p class="hub-empty" id="groups-empty" data-default-text="No groups yet — create one above.">
             No groups yet — create one above.
           </p>
         </div>
@@ -4638,6 +4729,80 @@
         renderReactionRows(data || [], "group-thread-log");
       }
 
+      /* ================= List polish (Phase C) =================
+         Search, right-click context menus, and unread-aware sorting for
+         the Chats and Groups list panes. The context menu and search
+         filter are generic (built once, reused by both lists); sorting and
+         the specific menu items each list offers stay next to their own
+         load functions below since the data differs. */
+
+      // ---- Right-click / long-press context menu ----
+      let listContextMenuEl = null;
+      function closeListContextMenu() {
+        if (!listContextMenuEl) return;
+        listContextMenuEl.remove();
+        listContextMenuEl = null;
+        document.removeEventListener("click", closeListContextMenuOnOutsideClick, true);
+        document.removeEventListener("contextmenu", closeListContextMenuOnOutsideClick, true);
+      }
+      function closeListContextMenuOnOutsideClick(e) {
+        if (listContextMenuEl && !listContextMenuEl.contains(e.target)) closeListContextMenu();
+      }
+      // items: [{ label, onClick, danger?, separatorBefore? }]
+      function openListItemMenu(x, y, items) {
+        closeListContextMenu();
+        closeReactionPicker(); // don't let a reaction picker and this coexist
+        const menu = document.createElement("div");
+        menu.className = "list-context-menu";
+        menu.innerHTML = items
+          .map(
+            (it, idx) =>
+              (it.separatorBefore ? `<div class="list-context-menu-sep"></div>` : "") +
+              `<button class="list-context-menu-item${it.danger ? " danger" : ""}" data-idx="${idx}">${escapeHtml(it.label)}</button>`,
+          )
+          .join("");
+        document.body.appendChild(menu);
+        const rect = menu.getBoundingClientRect();
+        menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 10))}px`;
+        menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 10))}px`;
+        menu.querySelectorAll(".list-context-menu-item").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            closeListContextMenu();
+            items[Number(btn.dataset.idx)].onClick();
+          });
+        });
+        listContextMenuEl = menu;
+        setTimeout(() => {
+          document.addEventListener("click", closeListContextMenuOnOutsideClick, true);
+          document.addEventListener("contextmenu", closeListContextMenuOnOutsideClick, true);
+        }, 0);
+      }
+
+      // ---- Search filtering ----
+      // Purely client-side: filters the already-rendered rows rather than
+      // re-querying, and is re-applied after every reload (loadConversations
+      // / loadGroups) so an in-progress search survives realtime updates.
+      function applyListSearch(listId, emptyId, inputId) {
+        const term = $(inputId).value.trim().toLowerCase();
+        const items = $(listId).querySelectorAll(".hub-item");
+        let visibleCount = 0;
+        items.forEach((item) => {
+          const match = !term || item.textContent.toLowerCase().includes(term);
+          item.style.display = match ? "" : "none";
+          if (match) visibleCount++;
+        });
+        const emptyEl = $(emptyId);
+        if (!items.length) {
+          emptyEl.textContent = emptyEl.dataset.defaultText || "";
+          emptyEl.style.display = "block";
+        } else if (term && !visibleCount) {
+          emptyEl.textContent = `No matches for "${$(inputId).value.trim()}"`;
+          emptyEl.style.display = "block";
+        } else {
+          emptyEl.style.display = "none";
+        }
+      }
+
       /* ================= Chats: persistent 1:1 messaging ================= */
       // Unlike the in-call chat (ephemeral, over a WebRTC DataChannel, gone
       // once the call ends), this is durable: stored in Supabase so it's
@@ -4753,6 +4918,12 @@
           Object.values(unreadByConv).reduce((a, b) => a + b, 0),
         );
 
+        // Unread conversations float to the top, like WhatsApp -- within
+        // each group (unread / read) the existing recency order still holds
+        // since Array.sort is stable and visibleData already came back
+        // ordered by last_message_at from the query above.
+        visibleData.sort((a, b) => (unreadByConv[b.id] ? 1 : 0) - (unreadByConv[a.id] ? 1 : 0));
+
         const list = $("conversations-list");
         list.innerHTML = "";
         $("conversations-empty").style.display = visibleData.length ? "none" : "block";
@@ -4792,12 +4963,71 @@
             loadConversations();
           });
           item.addEventListener("click", () => openConversationThread(conv));
+          item.addEventListener("contextmenu", async (e) => {
+            e.preventDefault();
+            const prefs = await getConversationPrefs(conv.id);
+            openListItemMenu(e.clientX, e.clientY, [
+              {
+                label: isFav ? "Remove from favorites" : "Add to favorites",
+                onClick: async () => {
+                  if (isFav) {
+                    await sb.from("favorite_conversations").delete().eq("user_id", myId).eq("conversation_id", conv.id);
+                  } else {
+                    await sb.from("favorite_conversations").insert({ user_id: myId, conversation_id: conv.id });
+                  }
+                  loadConversations();
+                },
+              },
+              {
+                label: prefs.muted ? "Unmute notifications" : "Mute notifications",
+                onClick: () => saveConversationPrefs(conv.id, { muted: !prefs.muted }),
+              },
+              {
+                label: unreadCountForConv ? "Mark as read" : "Mark as unread",
+                onClick: () => (unreadCountForConv ? markConversationRead(conv.id) : markConversationUnread(conv, myId)),
+              },
+              {
+                label: "Clear chat",
+                danger: true,
+                separatorBefore: true,
+                onClick: async () => {
+                  if (!confirm(`Clear this chat's history with ${otherDisplay}? This can't be undone.`)) return;
+                  await sb.from("messages").delete().eq("conversation_id", conv.id);
+                  loadConversations();
+                },
+              },
+            ]);
+          });
           list.appendChild(item);
         }
 
         updateAllPresenceDots();
+        applyListSearch("conversations-list", "conversations-empty", "chats-search-input");
         subscribeToConversationList(myId);
       }
+      $("chats-search-input").addEventListener("input", () =>
+        applyListSearch("conversations-list", "conversations-empty", "chats-search-input"),
+      );
+
+      // "Mark as unread" flips just the most recent incoming message back to
+      // "sent" -- the existing unread-count logic (badge + sort order) then
+      // picks the conversation back up as unread on its own, the same way it
+      // would if that message genuinely hadn't been read yet. No separate
+      // "unread" flag needed since the schema already has one that means this.
+      async function markConversationUnread(conv, myId) {
+        const { data: last } = await sb
+          .from("messages")
+          .select("id")
+          .eq("conversation_id", conv.id)
+          .neq("sender_id", myId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!last) return;
+        await sb.from("messages").update({ status: "sent" }).eq("id", last.id);
+        loadConversations();
+      }
+
 
       function updateChatsUnreadBadge(count) {
         const badge = $("chats-unread-badge");
@@ -5710,7 +5940,7 @@
         const list = $("groups-list");
         if (!groupIds.length) {
           list.innerHTML = "";
-          $("groups-empty").style.display = "block";
+          applyListSearch("groups-list", "groups-empty", "groups-search-input");
           updateGroupsUnreadBadge(0);
           subscribeToGroupsList(myId);
           return;
@@ -5761,6 +5991,9 @@
         updateGroupsUnreadBadge(Object.values(unreadByGroup).reduce((a, b) => a + b, 0));
 
         groups.sort((a, b) => {
+          const aUnread = unreadByGroup[a.id] ? 1 : 0;
+          const bUnread = unreadByGroup[b.id] ? 1 : 0;
+          if (aUnread !== bUnread) return bUnread - aUnread; // unread groups float to the top, like WhatsApp
           const aTime = lastByGroup[a.id] ? new Date(lastByGroup[a.id].created_at).getTime() : 0;
           const bTime = lastByGroup[b.id] ? new Date(lastByGroup[b.id].created_at).getTime() : 0;
           return bTime - aTime;
@@ -5805,11 +6038,92 @@
             loadGroups();
           });
           item.addEventListener("click", () => openGroupThread(group));
+          item.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            const menuItems = [
+              {
+                label: isFav ? "Remove from favorites" : "Add to favorites",
+                onClick: async () => {
+                  if (isFav) {
+                    await sb.from("favorite_groups").delete().eq("user_id", myId).eq("group_id", group.id);
+                  } else {
+                    await sb.from("favorite_groups").insert({ user_id: myId, group_id: group.id });
+                  }
+                  loadGroups();
+                },
+              },
+              {
+                label: unreadCount ? "Mark as read" : "Mark as unread",
+                onClick: () => (unreadCount ? markGroupMessagesRead(group.id) : markGroupUnread(group, myId)),
+              },
+            ];
+            if (group.created_by === myId) {
+              menuItems.push({
+                label: "Clear chat",
+                danger: true,
+                separatorBefore: true,
+                onClick: async () => {
+                  if (!confirm(`Clear "${group.name}"'s history for everyone? This can't be undone.`)) return;
+                  await sb.from("group_messages").delete().eq("group_id", group.id);
+                  loadGroups();
+                },
+              });
+            }
+            menuItems.push({
+              label: "Leave group",
+              danger: true,
+              separatorBefore: group.created_by !== myId,
+              onClick: () => leaveGroup(group),
+            });
+            openListItemMenu(e.clientX, e.clientY, menuItems);
+          });
           list.appendChild(item);
         }
 
+        applyListSearch("groups-list", "groups-empty", "groups-search-input");
         subscribeToGroupsList(myId);
       }
+      $("groups-search-input").addEventListener("input", () =>
+        applyListSearch("groups-list", "groups-empty", "groups-search-input"),
+      );
+
+      // Mirrors markConversationUnread: deletes just this user's read
+      // receipt on the most recent incoming message, so the existing
+      // unread-count query (badge + sort order) picks the group back up as
+      // unread on its own -- no separate flag needed.
+      async function markGroupUnread(group, myId) {
+        const { data: last } = await sb
+          .from("group_messages")
+          .select("id")
+          .eq("group_id", group.id)
+          .neq("sender_id", myId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!last) return;
+        await sb.from("group_message_reads").delete().eq("message_id", last.id).eq("user_id", myId);
+        loadGroups();
+      }
+
+      async function leaveGroup(group) {
+        if (!confirm(`Leave "${group.name}"? You'll need to be re-added to rejoin.`)) return;
+        const myId = currentSession.user.id;
+        const { error } = await sb.from("group_members").delete().eq("group_id", group.id).eq("user_id", myId);
+        if (error) {
+          alert("Could not leave that group: " + error.message);
+          return;
+        }
+        if (currentGroupThread && currentGroupThread.id === group.id) {
+          if (groupThreadChannel) {
+            sb.removeChannel(groupThreadChannel);
+            groupThreadChannel = null;
+          }
+          currentGroupThread = null;
+          setGroupsPane("list");
+        }
+        loadGroups();
+      }
+
 
       function updateGroupsUnreadBadge(count) {
         const badge = $("groups-unread-badge");
@@ -6160,23 +6474,9 @@
         $("group-thread-log").innerHTML = "";
       };
 
-      $("group-exit-btn").onclick = async () => {
+      $("group-exit-btn").onclick = () => {
         if (!currentGroupThread) return;
-        const group = currentGroupThread;
-        if (!confirm(`Leave "${group.name}"? You'll need to be re-added to rejoin.`)) return;
-        const myId = currentSession.user.id;
-        const { error } = await sb.from("group_members").delete().eq("group_id", group.id).eq("user_id", myId);
-        if (error) {
-          alert("Could not leave that group: " + error.message);
-          return;
-        }
-        if (groupThreadChannel) {
-          sb.removeChannel(groupThreadChannel);
-          groupThreadChannel = null;
-        }
-        currentGroupThread = null;
-        setGroupsPane("list");
-        loadGroups();
+        leaveGroup(currentGroupThread);
       };
 
       async function loadGroupMessages(groupId) {

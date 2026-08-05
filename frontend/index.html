@@ -1434,6 +1434,107 @@
         display: flex;
       }
 
+      /* Desktop 3-pane layout (icon rail | list | detail), WhatsApp-style.
+         Below this width the app keeps its original single-column mobile
+         behavior where list/thread/info replace each other in place. */
+      @media (min-width: 900px) {
+        .calls-hub {
+          max-width: 1200px;
+          height: 80vh;
+          max-height: 860px;
+          margin-bottom: 24px;
+        }
+        .hub-panel {
+          height: 100%;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+        #hub-panel-chats,
+        #hub-panel-groups {
+          flex-direction: row;
+          padding: 0;
+          height: 100%;
+        }
+        #chats-list-view,
+        #groups-list-view {
+          display: flex !important;
+          width: 340px;
+          flex-shrink: 0;
+          height: 100%;
+          box-sizing: border-box;
+          padding: 16px 14px;
+          border-right: 1px solid var(--line);
+          overflow-y: auto;
+        }
+        #chat-thread-view,
+        #contact-info-view,
+        #group-thread-view,
+        #group-info-view,
+        .hub-empty-state {
+          flex: 1;
+          min-width: 0;
+          height: 100%;
+          box-sizing: border-box;
+          padding: 18px 22px;
+        }
+        .hub-empty-state {
+          display: none;
+        }
+        .hub-empty-state.show {
+          display: flex;
+        }
+        #hub-panel-call {
+          display: grid;
+          grid-template-columns: 340px 1fr;
+          column-gap: 24px;
+          align-content: start;
+          height: 100%;
+          overflow-y: auto;
+          padding: 18px 20px 20px;
+          box-sizing: border-box;
+        }
+        #hub-panel-call #setup-panel,
+        #hub-panel-call #join-card {
+          grid-column: 2;
+        }
+        #hub-panel-call .pill-row,
+        #hub-panel-call #call-filter-recents,
+        #hub-panel-call #call-filter-favorites,
+        #hub-panel-call #call-filter-all {
+          grid-column: 1;
+        }
+        #hub-panel-schedule,
+        #hub-panel-profile {
+          height: 100%;
+          overflow-y: auto;
+          box-sizing: border-box;
+          max-width: 640px;
+        }
+      }
+
+      .hub-empty-state {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 10px;
+        color: var(--text-dim);
+      }
+      .hub-empty-state svg {
+        width: 64px;
+        height: 64px;
+        opacity: 0.35;
+      }
+      .hub-empty-state .hub-empty-state-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-dim);
+      }
+      .hub-empty-state .hub-empty-state-sub {
+        font-size: 12.5px;
+        max-width: 260px;
+      }
+
       /* Small phones (iPhone SE, older Android): shrink icon buttons and
          gaps so the control bar can never need horizontal scrolling. */
       @media (max-width: 380px) {
@@ -2222,6 +2323,19 @@
           </div>
         </div>
 
+        <!-- Desktop-only: shown in the detail pane when no chat is open -->
+        <div class="hub-empty-state show" id="chats-empty-state">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"
+            ></path>
+          </svg>
+          <div class="hub-empty-state-title">Select a chat</div>
+          <div class="hub-empty-state-sub">
+            Pick a conversation from the list to start messaging.
+          </div>
+        </div>
+
         <!-- Contact info panel: opens when tapping the thread avatar -->
         <div
           id="contact-info-view"
@@ -2384,6 +2498,19 @@
               autocomplete="off"
             />
             <button id="group-thread-send-btn">Send</button>
+          </div>
+        </div>
+
+        <!-- Desktop-only: shown in the detail pane when no group is open -->
+        <div class="hub-empty-state show" id="groups-empty-state">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+            ></path>
+          </svg>
+          <div class="hub-empty-state-title">Select a group</div>
+          <div class="hub-empty-state-sub">
+            Pick a group from the list to see the conversation.
           </div>
         </div>
 
@@ -3302,6 +3429,40 @@
 
       /* ================= Calls hub: tabs, Recents, Favorites, Schedule ================= */
 
+      // Above this width the chats/groups panels show as a 3-pane layout
+      // (list always visible + a detail pane alongside it). Below it, the
+      // original mobile behavior applies: list/thread/info replace each
+      // other one at a time.
+      function isDesktopHub() {
+        return window.matchMedia("(min-width: 900px)").matches;
+      }
+
+      // view: "list" | "thread" | "info"
+      function setChatsPane(view) {
+        const desktop = isDesktopHub();
+        $("chats-list-view").style.display =
+          desktop || view === "list" ? "flex" : "none";
+        $("chat-thread-view").style.display =
+          view === "thread" ? "flex" : "none";
+        $("contact-info-view").style.display =
+          view === "info" ? "flex" : "none";
+        const empty = $("chats-empty-state");
+        if (empty) empty.style.display = desktop && view === "list" ? "flex" : "none";
+      }
+
+      // view: "list" | "thread" | "info"
+      function setGroupsPane(view) {
+        const desktop = isDesktopHub();
+        $("groups-list-view").style.display =
+          desktop || view === "list" ? "flex" : "none";
+        $("group-thread-view").style.display =
+          view === "thread" ? "flex" : "none";
+        $("group-info-view").style.display =
+          view === "info" ? "flex" : "none";
+        const empty = $("groups-empty-state");
+        if (empty) empty.style.display = desktop && view === "list" ? "flex" : "none";
+      }
+
       function switchHubTab(tab) {
         document
           .querySelectorAll(".hub-tab")
@@ -3320,8 +3481,14 @@
             : "none";
         });
         if (tab === "call") loadCallFilter(currentCallFilter);
-        if (tab === "chats") loadConversations();
-        if (tab === "groups") loadGroups();
+        if (tab === "chats") {
+          loadConversations();
+          if (!currentThreadConv) setChatsPane("list");
+        }
+        if (tab === "groups") {
+          loadGroups();
+          if (!currentGroupThread) setGroupsPane("list");
+        }
       }
       document.querySelectorAll(".hub-tab").forEach((btn) => {
         btn.onclick = () => switchHubTab(btn.dataset.tab);
@@ -4148,9 +4315,7 @@
         // case where they've since changed their username or added a photo).
         $("thread-title").textContent = fallbackDisplay;
         $("thread-avatar").textContent = initialsFor(fallbackDisplay);
-        $("chats-list-view").style.display = "none";
-        $("contact-info-view").style.display = "none";
-        $("chat-thread-view").style.display = "flex";
+        setChatsPane("thread");
 
         sb.from("profiles")
           .select("username,email,avatar_url")
@@ -4342,8 +4507,7 @@
           threadChannel = null;
         }
         currentThreadConv = null;
-        $("chat-thread-view").style.display = "none";
-        $("chats-list-view").style.display = "flex";
+        setChatsPane("list");
         loadConversations();
       }
       $("thread-back-btn").onclick = closeConversationThread;
@@ -4435,8 +4599,7 @@
           $("contact-info-avatar").textContent = initialsFor(display);
         }
 
-        $("chat-thread-view").style.display = "none";
-        $("contact-info-view").style.display = "flex";
+        setChatsPane("info");
 
         // Favorite status
         const { data: favRow } = await sb
@@ -4471,8 +4634,7 @@
         await renderContactMedia(messages || []);
       }
       $("contact-info-back-btn").onclick = () => {
-        $("contact-info-view").style.display = "none";
-        $("chat-thread-view").style.display = "flex";
+        setChatsPane("thread");
       };
 
       function updateContactFavButton(isFav) {
@@ -4970,9 +5132,7 @@
         } else {
           $("group-thread-avatar").textContent = initialsFor(group.name);
         }
-        $("groups-list-view").style.display = "none";
-        $("group-info-view").style.display = "none";
-        $("group-thread-view").style.display = "flex";
+        setGroupsPane("thread");
 
         await loadGroupMessages(group.id);
         await markGroupMessagesRead(group.id);
@@ -5047,8 +5207,7 @@
         // consequential than a 1:1 clear since it affects every member.
         $("group-clear-btn").style.display = group.created_by === myId ? "flex" : "none";
 
-        $("group-thread-view").style.display = "none";
-        $("group-info-view").style.display = "flex";
+        setGroupsPane("info");
 
         const { data: favRow } = await sb
           .from("favorite_groups")
@@ -5069,8 +5228,7 @@
         await renderGroupMedia(messages || []);
       }
       $("group-info-back-btn").onclick = () => {
-        $("group-info-view").style.display = "none";
-        $("group-thread-view").style.display = "flex";
+        setGroupsPane("thread");
       };
 
       function updateGroupFavButton(isFav) {
@@ -5227,8 +5385,7 @@
           groupThreadChannel = null;
         }
         currentGroupThread = null;
-        $("group-info-view").style.display = "none";
-        $("groups-list-view").style.display = "flex";
+        setGroupsPane("list");
         loadGroups();
       };
 
@@ -5393,8 +5550,7 @@
           groupThreadChannel = null;
         }
         currentGroupThread = null;
-        $("group-thread-view").style.display = "none";
-        $("groups-list-view").style.display = "flex";
+        setGroupsPane("list");
         loadGroups();
       }
       $("group-back-btn").onclick = closeGroupThread;

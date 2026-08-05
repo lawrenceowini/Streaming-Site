@@ -718,3 +718,123 @@ create policy "group_messages_delete_creator" on group_messages
 
 alter table profiles add column if not exists last_seen_at timestamptz;
 
+-- ---------------------------------------------------------------------------
+-- Message thread polish (Phase B): reply/quote and emoji reactions. Date
+-- dividers need nothing here -- they're derived client-side from each
+-- message's existing created_at.
+-- ---------------------------------------------------------------------------
+
+-- Reply/quote: a message can point at one earlier message in the same
+-- conversation/group. "on delete set null" rather than cascade, so deleting
+-- the original message a reply pointed at doesn't take the reply down with
+-- it -- the frontend just falls back to an "Original message" placeholder.
+alter table messages add column if not exists reply_to_message_id uuid references messages(id) on delete set null;
+alter table group_messages add column if not exists reply_to_message_id uuid references group_messages(id) on delete set null;
+
+-- One reaction per person per message (tapping a different emoji swaps your
+-- previous one, same as WhatsApp) -- enforced by the unique constraint
+-- rather than needing an update policy; the frontend deletes-then-inserts
+-- or updates the existing row by id.
+create table if not exists message_reactions (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references messages(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  unique (message_id, user_id)
+);
+alter table message_reactions enable row level security;
+
+drop policy if exists "message_reactions_select_participant" on message_reactions;
+create policy "message_reactions_select_participant" on message_reactions
+  for select using (
+    exists (
+      select 1 from messages m
+      join conversations c on c.id = m.conversation_id
+      where m.id = message_reactions.message_id
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+    )
+  );
+
+drop policy if exists "message_reactions_insert_own" on message_reactions;
+create policy "message_reactions_insert_own" on message_reactions
+  for insert with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from messages m
+      join conversations c on c.id = m.conversation_id
+      where m.id = message_reactions.message_id
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+    )
+  );
+
+drop policy if exists "message_reactions_update_own" on message_reactions;
+create policy "message_reactions_update_own" on message_reactions
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists "message_reactions_delete_own" on message_reactions;
+create policy "message_reactions_delete_own" on message_reactions
+  for delete using (user_id = auth.uid());
+
+create table if not exists group_message_reactions (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references group_messages(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  unique (message_id, user_id)
+);
+alter table group_message_reactions enable row level security;
+
+-- Reuses the same is_group_member() SECURITY DEFINER helper as the rest of
+-- the groups schema, for the same reason it was introduced there: a plain
+-- membership subquery here would hit the same self-referential recursion
+-- issue on group_members.
+drop policy if exists "group_message_reactions_select_member" on group_message_reactions;
+create policy "group_message_reactions_select_member" on group_message_reactions
+  for select using (
+    exists (
+      select 1 from group_messages gm
+      where gm.id = group_message_reactions.message_id
+        and public.is_group_member(gm.group_id, auth.uid())
+    )
+  );
+
+drop policy if exists "group_message_reactions_insert_own" on group_message_reactions;
+create policy "group_message_reactions_insert_own" on group_message_reactions
+  for insert with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from group_messages gm
+      where gm.id = group_message_reactions.message_id
+        and public.is_group_member(gm.group_id, auth.uid())
+    )
+  );
+
+drop policy if exists "group_message_reactions_update_own" on group_message_reactions;
+create policy "group_message_reactions_update_own" on group_message_reactions
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists "group_message_reactions_delete_own" on group_message_reactions;
+create policy "group_message_reactions_delete_own" on group_message_reactions
+  for delete using (user_id = auth.uid());
+
+-- Both reaction tables need to be in the realtime publication for the
+-- frontend's live "someone reacted" updates to fire at all (same as every
+-- other table this app subscribes to with postgres_changes).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'message_reactions'
+  ) then
+    alter publication supabase_realtime add table message_reactions;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'group_message_reactions'
+  ) then
+    alter publication supabase_realtime add table group_message_reactions;
+  end if;
+end $$;
+

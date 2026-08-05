@@ -1699,6 +1699,7 @@
         padding: 7px 11px;
         border-radius: 10px;
         word-break: break-word;
+        position: relative;
       }
       .chat-msg.me {
         text-align: right;
@@ -1714,6 +1715,193 @@
       .chat-msg.them .bubble {
         background: var(--bg-panel-2);
         border: 1px solid var(--line);
+      }
+
+      /* ---- Date dividers ---- */
+      .date-divider {
+        display: flex;
+        justify-content: center;
+        margin: 12px 0;
+      }
+      .date-divider span {
+        background: var(--bg-panel-2);
+        color: var(--text-dim);
+        font-size: 11px;
+        padding: 3px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+      }
+
+      /* ---- Reply / quote ---- */
+      .quote-block {
+        border-left: 3px solid var(--accent);
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        padding: 4px 8px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        text-align: left;
+      }
+      .chat-msg.them .quote-block {
+        background: var(--bg-panel);
+      }
+      .chat-msg.me .quote-block {
+        background: rgba(0, 0, 0, 0.12);
+      }
+      .quote-sender {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--accent);
+      }
+      .chat-msg.me .quote-sender {
+        color: #4a3410;
+      }
+      .quote-snippet {
+        font-size: 12px;
+        color: var(--text-dim);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .chat-msg.me .quote-snippet {
+        color: rgba(26, 18, 0, 0.75);
+      }
+      .highlight-flash {
+        animation: flash-bg 1.2s ease;
+      }
+      @keyframes flash-bg {
+        0% {
+          box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.55);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(232, 163, 61, 0);
+        }
+      }
+
+      .reply-preview-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        background: var(--bg-panel-2);
+        border-radius: 8px;
+        margin-bottom: 6px;
+        border-left: 3px solid var(--accent);
+        flex-shrink: 0;
+      }
+      .reply-preview-content {
+        flex: 1;
+        min-width: 0;
+      }
+      .reply-preview-sender {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--accent);
+      }
+      .reply-preview-snippet {
+        font-size: 12px;
+        color: var(--text-dim);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* ---- Hover actions (reply / react) ---- */
+      .msg-actions {
+        position: absolute;
+        top: -13px;
+        right: -6px;
+        display: flex;
+        gap: 2px;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 2px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.12s ease;
+        z-index: 2;
+      }
+      .chat-msg.me .msg-actions {
+        right: auto;
+        left: -6px;
+      }
+      .chat-msg:hover .msg-actions {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .msg-action-btn {
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        background: transparent;
+        color: var(--text-dim);
+        cursor: pointer;
+        border-radius: 5px;
+        font-size: 12px;
+        padding: 0;
+      }
+      .msg-action-btn:hover {
+        background: var(--bg-panel-2);
+        color: var(--text);
+      }
+
+      /* ---- Reactions ---- */
+      .reaction-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 4px;
+      }
+      .reaction-row:empty {
+        display: none;
+        margin-top: 0;
+      }
+      .reaction-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 11px;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 1px 7px;
+        cursor: pointer;
+        color: var(--text);
+      }
+      .chat-msg.me .reaction-pill {
+        background: rgba(0, 0, 0, 0.15);
+        border-color: rgba(0, 0, 0, 0.2);
+      }
+      .reaction-pill.mine {
+        border-color: var(--accent);
+      }
+      .reaction-picker {
+        position: fixed;
+        display: flex;
+        gap: 2px;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 4px 6px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        z-index: 50;
+      }
+      .reaction-picker-emoji {
+        border: none;
+        background: transparent;
+        font-size: 18px;
+        line-height: 1;
+        padding: 4px;
+        cursor: pointer;
+        border-radius: 50%;
+      }
+      .reaction-picker-emoji:hover {
+        background: var(--bg-panel-2);
+        transform: scale(1.15);
       }
       .chat-msg .meta {
         font-size: 10px;
@@ -2344,6 +2532,19 @@
             You've blocked this contact. Unblock them from contact info to
             send messages.
           </p>
+          <div class="reply-preview-bar" id="thread-reply-bar" style="display: none">
+            <div class="reply-preview-content">
+              <div class="reply-preview-sender" id="thread-reply-sender"></div>
+              <div class="reply-preview-snippet" id="thread-reply-snippet"></div>
+            </div>
+            <button class="hub-icon-btn" id="thread-reply-cancel" title="Cancel reply">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                ></path>
+              </svg>
+            </button>
+          </div>
           <div class="chat-input-row" id="thread-input-row">
             <button id="thread-attach" title="Send a photo or file">
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -2528,6 +2729,19 @@
           <div class="recording-indicator" id="group-recording-indicator">
             <span class="recording-dot"></span>
             <span id="group-recording-time">0:00</span> Recording…
+          </div>
+          <div class="reply-preview-bar" id="group-reply-bar" style="display: none">
+            <div class="reply-preview-content">
+              <div class="reply-preview-sender" id="group-reply-sender"></div>
+              <div class="reply-preview-snippet" id="group-reply-snippet"></div>
+            </div>
+            <button class="hub-icon-btn" id="group-reply-cancel" title="Cancel reply">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                ></path>
+              </svg>
+            </button>
           </div>
           <div class="chat-input-row">
             <button id="group-attach" title="Send a photo or file">
@@ -4219,6 +4433,201 @@
         mediaRecorder.start();
       }
 
+      /* ================= Message thread polish (Phase B) =================
+         Date dividers, reply/quote, and emoji reactions. The pieces here
+         that don't care whether they're in a 1:1 or group thread (date
+         labels, quote snippets, the reaction picker popover, and toggling a
+         reaction itself) live in one shared place; the pieces that do
+         differ (rendering into the right log, building a sender label) stay
+         next to the 1:1 and group code below instead. */
+
+      function dateDividerLabel(iso) {
+        const d = new Date(iso);
+        const startOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+        const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+        if (diffDays === 0) return "Today";
+        if (diffDays === 1) return "Yesterday";
+        if (diffDays > 1 && diffDays < 7) return d.toLocaleDateString(undefined, { weekday: "long" });
+        return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+      }
+
+      function maybeInsertDateDivider(logEl, m, lastKeyRef) {
+        const dateKey = new Date(m.created_at).toDateString();
+        if (dateKey === lastKeyRef.value) return;
+        lastKeyRef.value = dateKey;
+        const divider = document.createElement("div");
+        divider.className = "date-divider";
+        divider.innerHTML = `<span>${escapeHtml(dateDividerLabel(m.created_at))}</span>`;
+        logEl.appendChild(divider);
+      }
+
+      function snippetForMessage(m) {
+        if (m.body) return m.body.slice(0, 120);
+        if (m.media_path) {
+          if (m.media_mime && m.media_mime.startsWith("image/")) return "📷 Photo";
+          if (m.media_mime && m.media_mime.startsWith("audio/")) return "🎤 Voice message";
+          return "📎 " + (m.media_name || "File");
+        }
+        return "";
+      }
+
+      function buildQuoteBlock(replyToId, messagesById) {
+        const quoted = messagesById[replyToId];
+        const el = document.createElement("div");
+        el.className = "quote-block";
+        if (quoted) {
+          el.innerHTML = `<div class="quote-sender">${escapeHtml(quoted.senderLabel)}</div><div class="quote-snippet">${escapeHtml(quoted.snippet)}</div>`;
+        } else {
+          el.innerHTML = `<div class="quote-snippet">Original message</div>`;
+        }
+        return el;
+      }
+
+      function scrollToMessage(logId, messageId) {
+        const el = document.querySelector(`#${logId} [data-message-id="${CSS.escape(messageId)}"]`);
+        if (!el) return;
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        const bubble = el.querySelector(".bubble");
+        if (bubble) {
+          bubble.classList.add("highlight-flash");
+          setTimeout(() => bubble.classList.remove("highlight-flash"), 1200);
+        }
+      }
+
+      // ---- Reply composer state (kept separate per thread type since a 1:1
+      // and a group thread can't both be "the" open thread at once, but
+      // switching tabs shouldn't lose either one's in-progress reply). ----
+      let replyingToMessage = null; // { id, senderLabel, snippet }
+      let groupReplyingToMessage = null;
+
+      function startReply(kind, message, senderLabel) {
+        const snippet = snippetForMessage(message);
+        if (kind === "chat") {
+          replyingToMessage = { id: message.id, senderLabel, snippet };
+          $("thread-reply-sender").textContent = senderLabel;
+          $("thread-reply-snippet").textContent = snippet;
+          $("thread-reply-bar").style.display = "flex";
+          $("thread-input").focus();
+        } else {
+          groupReplyingToMessage = { id: message.id, senderLabel, snippet };
+          $("group-reply-sender").textContent = senderLabel;
+          $("group-reply-snippet").textContent = snippet;
+          $("group-reply-bar").style.display = "flex";
+          $("group-thread-input").focus();
+        }
+      }
+      function cancelReply(kind) {
+        if (kind === "chat") {
+          replyingToMessage = null;
+          $("thread-reply-bar").style.display = "none";
+        } else {
+          groupReplyingToMessage = null;
+          $("group-reply-bar").style.display = "none";
+        }
+      }
+      $("thread-reply-cancel").onclick = () => cancelReply("chat");
+      $("group-reply-cancel").onclick = () => cancelReply("group");
+
+      // ---- Emoji reactions ----
+      const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+      let reactionPickerEl = null;
+
+      function closeReactionPicker() {
+        if (!reactionPickerEl) return;
+        reactionPickerEl.remove();
+        reactionPickerEl = null;
+        document.removeEventListener("click", closeReactionPickerOnOutsideClick, true);
+      }
+      function closeReactionPickerOnOutsideClick(e) {
+        if (reactionPickerEl && !reactionPickerEl.contains(e.target)) closeReactionPicker();
+      }
+      function openReactionPicker(anchorEl, kind, messageId) {
+        closeReactionPicker();
+        const pop = document.createElement("div");
+        pop.className = "reaction-picker";
+        pop.innerHTML = QUICK_REACTIONS.map(
+          (em) => `<button class="reaction-picker-emoji" data-emoji="${em}">${em}</button>`,
+        ).join("");
+        document.body.appendChild(pop);
+        const rect = anchorEl.getBoundingClientRect();
+        pop.style.top = `${Math.max(8, rect.top - 44)}px`;
+        pop.style.left = `${Math.max(8, Math.min(window.innerWidth - 220, rect.left - 90))}px`;
+        pop.querySelectorAll(".reaction-picker-emoji").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            toggleReaction(kind, messageId, btn.dataset.emoji);
+            closeReactionPicker();
+          });
+        });
+        reactionPickerEl = pop;
+        setTimeout(() => document.addEventListener("click", closeReactionPickerOnOutsideClick, true), 0);
+      }
+
+      async function toggleReaction(kind, messageId, emoji) {
+        const table = kind === "chat" ? "message_reactions" : "group_message_reactions";
+        const myId = currentSession.user.id;
+        const { data: existing } = await sb
+          .from(table)
+          .select("id,emoji")
+          .eq("message_id", messageId)
+          .eq("user_id", myId)
+          .maybeSingle();
+        if (existing && existing.emoji === emoji) {
+          await sb.from(table).delete().eq("id", existing.id); // tapping your own reaction again removes it
+        } else if (existing) {
+          await sb.from(table).update({ emoji }).eq("id", existing.id); // one reaction per person -- swap it
+        } else {
+          await sb.from(table).insert({ message_id: messageId, user_id: myId, emoji });
+        }
+        if (kind === "chat" && currentThreadConv) loadReactionsForThread(currentThreadConv.id);
+        else if (kind === "group" && currentGroupThread) loadReactionsForGroupThread(currentGroupThread.id);
+      }
+
+      function renderReactionRows(rows, logId) {
+        const myId = currentSession.user.id;
+        const byMessage = {};
+        for (const r of rows) {
+          (byMessage[r.message_id] = byMessage[r.message_id] || []).push(r);
+        }
+        document.querySelectorAll(`#${logId} [data-reactions-for]`).forEach((el) => {
+          const mid = el.dataset.reactionsFor;
+          const list = byMessage[mid] || [];
+          const byEmoji = {};
+          for (const r of list) {
+            byEmoji[r.emoji] = byEmoji[r.emoji] || { count: 0, mine: false };
+            byEmoji[r.emoji].count++;
+            if (r.user_id === myId) byEmoji[r.emoji].mine = true;
+          }
+          el.innerHTML = Object.entries(byEmoji)
+            .map(
+              ([emoji, info]) =>
+                `<span class="reaction-pill${info.mine ? " mine" : ""}" data-emoji="${emoji}">${emoji} ${info.count}</span>`,
+            )
+            .join("");
+          const kind = logId === "thread-log" ? "chat" : "group";
+          el.querySelectorAll(".reaction-pill").forEach((pill) => {
+            pill.addEventListener("click", () => toggleReaction(kind, mid, pill.dataset.emoji));
+          });
+        });
+      }
+
+      async function loadReactionsForThread(conversationId) {
+        if (!conversationId || !currentThreadConv || currentThreadConv.id !== conversationId) return;
+        const ids = Object.keys(threadMessagesById);
+        if (!ids.length) return;
+        const { data } = await sb.from("message_reactions").select("message_id,user_id,emoji").in("message_id", ids);
+        renderReactionRows(data || [], "thread-log");
+      }
+      async function loadReactionsForGroupThread(groupId) {
+        if (!groupId || !currentGroupThread || currentGroupThread.id !== groupId) return;
+        const ids = Object.keys(groupMessagesById);
+        if (!ids.length) return;
+        const { data } = await sb
+          .from("group_message_reactions")
+          .select("message_id,user_id,emoji")
+          .in("message_id", ids);
+        renderReactionRows(data || [], "group-thread-log");
+      }
+
       /* ================= Chats: persistent 1:1 messaging ================= */
       // Unlike the in-call chat (ephemeral, over a WebRTC DataChannel, gone
       // once the call ends), this is durable: stored in Supabase so it's
@@ -4227,6 +4636,14 @@
       let currentThreadConv = null; // the conversation object currently open, or null
       let threadChannel = null; // Realtime subscription for the open thread
       let conversationsChannel = null; // Realtime subscription for list-level updates
+
+      // Reset whenever the thread is (re)loaded from scratch. threadMessagesById
+      // backs reply/quote lookups (a reply always targets an earlier message,
+      // so everything it could ever point to is already in this map by the
+      // time it's needed); lastThreadDateKeyRef tracks the last date divider
+      // drawn, in a plain object so it can be passed by reference.
+      let threadMessagesById = {};
+      let lastThreadDateKeyRef = { value: null };
 
       // Typing indicator state for the open 1:1 thread. "Their" side is a
       // broadcast event received over threadChannel; "my" side sends one.
@@ -4516,6 +4933,7 @@
         myTypingActive = false;
         $("thread-subtitle").classList.remove("typing");
         $("thread-subtitle").textContent = "";
+        cancelReply("chat");
 
         // Show something immediately from the conversation's own snapshot,
         // then refine it with the live profile once that loads (covers the
@@ -4570,12 +4988,15 @@
           .order("created_at", { ascending: true });
         const log = $("thread-log");
         log.innerHTML = "";
+        threadMessagesById = {};
+        lastThreadDateKeyRef = { value: null };
         if (error) {
           console.warn("Could not load messages:", error);
           return;
         }
         for (const m of data) await renderThreadMessage(m);
         log.scrollTop = log.scrollHeight;
+        loadReactionsForThread(conversationId);
       }
 
       // Signed URLs are required since the chat-media bucket is private --
@@ -4593,10 +5014,22 @@
 
       async function renderThreadMessage(m) {
         const mine = m.sender_id === currentSession.user.id;
+        const otherLabel = $("thread-title").textContent || "Them";
+        const senderLabel = mine ? "You" : otherLabel;
+
+        maybeInsertDateDivider($("thread-log"), m, lastThreadDateKeyRef);
+
         const wrap = document.createElement("div");
         wrap.className = "chat-msg " + (mine ? "me" : "them");
+        wrap.dataset.messageId = m.id;
         const bubble = document.createElement("div");
         bubble.className = "bubble";
+
+        if (m.reply_to_message_id) {
+          const quoteEl = buildQuoteBlock(m.reply_to_message_id, threadMessagesById);
+          quoteEl.addEventListener("click", () => scrollToMessage("thread-log", m.reply_to_message_id));
+          bubble.appendChild(quoteEl);
+        }
 
         if (m.media_path) {
           const url = await signedMediaUrl(m.media_path);
@@ -4668,8 +5101,32 @@
           }
           bubble.appendChild(status);
         }
+
+        const reactionRow = document.createElement("div");
+        reactionRow.className = "reaction-row";
+        reactionRow.dataset.reactionsFor = m.id;
+        bubble.appendChild(reactionRow);
+
+        const actions = document.createElement("div");
+        actions.className = "msg-actions";
+        actions.innerHTML = `
+          <button class="msg-action-btn msg-reply-btn" title="Reply">↩</button>
+          <button class="msg-action-btn msg-react-btn" title="React">🙂</button>
+        `;
+        actions.querySelector(".msg-reply-btn").addEventListener("click", (e) => {
+          e.stopPropagation();
+          startReply("chat", m, senderLabel);
+        });
+        actions.querySelector(".msg-react-btn").addEventListener("click", (e) => {
+          e.stopPropagation();
+          openReactionPicker(e.currentTarget, "chat", m.id);
+        });
+        bubble.appendChild(actions);
+
         wrap.appendChild(bubble);
         $("thread-log").appendChild(wrap);
+
+        threadMessagesById[m.id] = { senderLabel, snippet: snippetForMessage(m) };
       }
 
       // Marks every message from the *other* person in this conversation as
@@ -4711,6 +5168,11 @@
             if (!payload || payload.user_id === currentSession.user.id) return;
             handleIncomingTyping(payload.is_typing);
           })
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "message_reactions" },
+            () => loadReactionsForThread(conversationId), // no filter here (reactions aren't keyed by conversation_id) -- RLS already scopes what comes through to this conversation's participants
+          )
           .subscribe();
       }
 
@@ -4723,6 +5185,7 @@
         clearTimeout(myTypingStopTimer);
         otherIsTypingInThread = false;
         myTypingActive = false;
+        cancelReply("chat");
         currentThreadConv = null;
         setChatsPane("list");
         loadConversations();
@@ -5002,6 +5465,7 @@
         const conv = currentThreadConv;
         const myId = currentSession.user.id;
         const myEmail = currentSession.user.email;
+        const replyToId = replyingToMessage ? replyingToMessage.id : null;
 
         stopMyTyping();
 
@@ -5010,11 +5474,13 @@
           sender_id: myId,
           sender_email: myEmail,
           body,
+          reply_to_message_id: replyToId,
         });
         if (error) {
           alert("Could not send that message: " + error.message);
           return;
         }
+        cancelReply("chat");
         await finishSendingMessage(conv, body);
       }
       $("thread-send-btn").onclick = sendThreadMessage;
@@ -5158,6 +5624,8 @@
    the rendering differ enough that sharing code with 1:1 chat would mean
    more branching than reuse. */
       let currentGroupThread = null;
+      let groupMessagesById = {};
+      let lastGroupDateKeyRef = { value: null };
       let groupThreadChannel = null;
       let groupsListChannel = null;
 
@@ -5431,6 +5899,7 @@
         clearGroupTypingState();
         clearTimeout(myGroupTypingStopTimer);
         myGroupTypingActive = false;
+        cancelReply("group");
         const subtitleEl = $("group-thread-subtitle");
         subtitleEl.classList.remove("typing");
         subtitleEl.textContent = "";
@@ -5708,6 +6177,8 @@
           .order("created_at", { ascending: true });
         const log = $("group-thread-log");
         log.innerHTML = "";
+        groupMessagesById = {};
+        lastGroupDateKeyRef = { value: null };
         if (error) {
           console.warn("Could not load group messages:", error);
           return;
@@ -5716,6 +6187,7 @@
         const profileMap = await batchLookupProfilesById(senderIds);
         for (const m of data) await renderGroupMessage(m, profileMap);
         log.scrollTop = log.scrollHeight;
+        loadReactionsForGroupThread(groupId);
       }
 
       async function countGroupMessageReads(messageId) {
@@ -5728,18 +6200,30 @@
 
       async function renderGroupMessage(m, profileMap) {
         const mine = m.sender_id === currentSession.user.id;
+        let senderLabel = "You";
+
+        maybeInsertDateDivider($("group-thread-log"), m, lastGroupDateKeyRef);
+
         const wrap = document.createElement("div");
         wrap.className = "chat-msg " + (mine ? "me" : "them");
+        wrap.dataset.messageId = m.id;
         const bubble = document.createElement("div");
         bubble.className = "bubble";
 
         if (!mine) {
           const senderProfile =
             (profileMap && profileMap[m.sender_id]) || (await getSenderProfile(m.sender_id));
+          senderLabel = (senderProfile && senderProfile.username) || m.sender_email;
           const sender = document.createElement("div");
           sender.className = "msg-sender";
-          sender.textContent = (senderProfile && senderProfile.username) || m.sender_email;
+          sender.textContent = senderLabel;
           bubble.appendChild(sender);
+        }
+
+        if (m.reply_to_message_id) {
+          const quoteEl = buildQuoteBlock(m.reply_to_message_id, groupMessagesById);
+          quoteEl.addEventListener("click", () => scrollToMessage("group-thread-log", m.reply_to_message_id));
+          bubble.appendChild(quoteEl);
         }
 
         if (m.media_path) {
@@ -5811,8 +6295,32 @@
             bubble.appendChild(seen);
           }
         }
+
+        const reactionRow = document.createElement("div");
+        reactionRow.className = "reaction-row";
+        reactionRow.dataset.reactionsFor = m.id;
+        bubble.appendChild(reactionRow);
+
+        const actions = document.createElement("div");
+        actions.className = "msg-actions";
+        actions.innerHTML = `
+          <button class="msg-action-btn msg-reply-btn" title="Reply">↩</button>
+          <button class="msg-action-btn msg-react-btn" title="React">🙂</button>
+        `;
+        actions.querySelector(".msg-reply-btn").addEventListener("click", (e) => {
+          e.stopPropagation();
+          startReply("group", m, senderLabel);
+        });
+        actions.querySelector(".msg-react-btn").addEventListener("click", (e) => {
+          e.stopPropagation();
+          openReactionPicker(e.currentTarget, "group", m.id);
+        });
+        bubble.appendChild(actions);
+
         wrap.appendChild(bubble);
         $("group-thread-log").appendChild(wrap);
+
+        groupMessagesById[m.id] = { senderLabel, snippet: snippetForMessage(m) };
       }
 
       async function markGroupMessagesRead(groupId) {
@@ -5856,6 +6364,11 @@
             if (!payload || payload.user_id === currentSession.user.id) return;
             handleIncomingGroupTyping(payload);
           })
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "group_message_reactions" },
+            () => loadReactionsForGroupThread(groupId), // no filter here (reactions aren't keyed by group_id) -- RLS already scopes what comes through to this group's members
+          )
           .subscribe();
       }
 
@@ -5867,6 +6380,7 @@
         clearGroupTypingState();
         clearTimeout(myGroupTypingStopTimer);
         myGroupTypingActive = false;
+        cancelReply("group");
         currentGroupThread = null;
         setGroupsPane("list");
         loadGroups();
@@ -5911,6 +6425,7 @@
         const group = currentGroupThread;
         const myId = currentSession.user.id;
         const myEmail = currentSession.user.email;
+        const replyToId = groupReplyingToMessage ? groupReplyingToMessage.id : null;
 
         stopMyGroupTyping();
 
@@ -5919,11 +6434,13 @@
           sender_id: myId,
           sender_email: myEmail,
           body,
+          reply_to_message_id: replyToId,
         });
         if (error) {
           alert("Could not send that message: " + error.message);
           return;
         }
+        cancelReply("group");
         await finishSendingGroupMessage(group, body);
       }
       $("group-thread-send-btn").onclick = sendGroupThreadMessage;

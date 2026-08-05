@@ -757,6 +757,7 @@
         font-size: 13px;
         flex-shrink: 0;
         overflow: hidden;
+        position: relative;
       }
       .hub-item-avatar img {
         width: 100%;
@@ -1612,6 +1613,47 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .thread-title-col {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        gap: 1px;
+      }
+      .thread-title-col .thread-title {
+        cursor: pointer;
+      }
+      .thread-subtitle {
+        font-size: 11px;
+        color: var(--text-dim);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-height: 13px;
+      }
+      .thread-subtitle.typing {
+        color: var(--accent);
+      }
+      .avatar-presence-wrap {
+        position: relative;
+        flex-shrink: 0;
+        display: inline-flex;
+      }
+      .presence-dot {
+        position: absolute;
+        right: -1px;
+        bottom: -1px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--text-dim);
+        border: 2px solid var(--bg-panel);
+        opacity: 0;
+        transition: opacity 0.15s ease;
+      }
+      .presence-dot.online {
+        background: var(--ok);
+        opacity: 1;
+      }
       .thread-log {
         flex: 1;
         min-height: 0;
@@ -2284,10 +2326,14 @@
                 ></path>
               </svg>
             </button>
-            <div class="hub-item-avatar" id="thread-avatar" style="cursor: pointer">
-              ?
+            <div class="avatar-presence-wrap" style="cursor: pointer">
+              <div class="hub-item-avatar" id="thread-avatar">?</div>
+              <span class="presence-dot" id="thread-avatar-dot"></span>
             </div>
-            <div class="thread-title" id="thread-title">Conversation</div>
+            <div class="thread-title-col">
+              <div class="thread-title" id="thread-title">Conversation</div>
+              <div class="thread-subtitle" id="thread-subtitle"></div>
+            </div>
           </div>
           <div class="thread-log" id="thread-log"></div>
           <div class="recording-indicator" id="thread-recording-indicator">
@@ -2467,12 +2513,15 @@
             >
               ?
             </div>
-            <div
-              class="thread-title"
-              id="group-thread-title"
-              style="cursor: pointer"
-            >
-              Group
+            <div class="thread-title-col">
+              <div
+                class="thread-title"
+                id="group-thread-title"
+                style="cursor: pointer"
+              >
+                Group
+              </div>
+              <div class="thread-subtitle" id="group-thread-subtitle"></div>
             </div>
           </div>
           <div class="thread-log" id="group-thread-log"></div>
@@ -2905,6 +2954,7 @@
         else showServerEdit();
 
         refreshNotifButtonState();
+        startPresence();
         loadRecents();
         loadFavorites();
         loadScheduledCalls();
@@ -2980,6 +3030,7 @@
       };
 
       $("logout-btn").onclick = async () => {
+        stopPresence();
         await sb.auth.signOut();
         currentSession = null;
         renderSignedOut();
@@ -2988,6 +3039,101 @@
       async function getAccessToken() {
         const { data } = await sb.auth.getSession();
         return data.session ? data.session.access_token : null;
+      }
+
+      /* ================= Presence (online / last seen) =================
+         Supabase Realtime Presence: every signed-in tab tracks itself on one
+         shared channel, so everyone else's tab finds out who's currently
+         online without any backend involvement -- this is plain Supabase
+         Realtime, the same mechanism (just a different event type) as the
+         per-conversation channels used for messages further down. Presence
+         itself is ephemeral (gone the instant a socket disconnects), so
+         profiles.last_seen_at is what "last seen 3h ago" reads from once
+         someone's presence drops. */
+      let presenceChannel = null;
+      let onlineUserIds = new Set();
+      let presenceHeartbeatInterval = null;
+
+      function startPresence() {
+        if (!currentSession || presenceChannel) return;
+        const myId = currentSession.user.id;
+        presenceChannel = sb.channel("presence:online", {
+          config: { presence: { key: myId } },
+        });
+        presenceChannel
+          .on("presence", { event: "sync" }, () => {
+            onlineUserIds = new Set(Object.keys(presenceChannel.presenceState()));
+            updateAllPresenceDots();
+            refreshOpenThreadPresence();
+          })
+          .subscribe((status) => {
+            if (status === "SUBSCRIBED") {
+              presenceChannel.track({ online_at: new Date().toISOString() });
+            }
+          });
+
+        touchLastSeen();
+        presenceHeartbeatInterval = setInterval(touchLastSeen, 45000);
+        document.addEventListener("visibilitychange", handleVisibilityForPresence);
+        window.addEventListener("beforeunload", touchLastSeen);
+      }
+
+      function stopPresence() {
+        if (presenceChannel) {
+          sb.removeChannel(presenceChannel);
+          presenceChannel = null;
+        }
+        if (presenceHeartbeatInterval) {
+          clearInterval(presenceHeartbeatInterval);
+          presenceHeartbeatInterval = null;
+        }
+        document.removeEventListener("visibilitychange", handleVisibilityForPresence);
+        onlineUserIds = new Set();
+        updateAllPresenceDots();
+      }
+
+      function handleVisibilityForPresence() {
+        if (document.visibilityState === "hidden") touchLastSeen();
+      }
+
+      function touchLastSeen() {
+        if (!currentSession) return;
+        sb.from("profiles")
+          .update({ last_seen_at: new Date().toISOString() })
+          .eq("id", currentSession.user.id)
+          .then(() => {}); // best effort -- a missed write just means a slightly stale "last seen"
+      }
+
+      function updateAllPresenceDots() {
+        document.querySelectorAll("[data-presence-for]").forEach((el) => {
+          el.classList.toggle("online", onlineUserIds.has(el.dataset.presenceFor));
+        });
+      }
+
+      function relativeLastSeen(iso) {
+        if (!iso) return "";
+        return "last seen " + relativeTime(iso);
+      }
+
+      // Refreshes the "online" / "last seen …" line under the open 1:1
+      // thread's name. Called on presence changes and right after a thread
+      // opens; a live "typing…" (below) takes over this same line and this
+      // function backs off while that's showing.
+      async function refreshOpenThreadPresence() {
+        const conv = currentThreadConv;
+        if (!conv || otherIsTypingInThread) return;
+        const myId = currentSession.user.id;
+        const otherId = conv.user_a_id === myId ? conv.user_b_id : conv.user_a_id;
+        const online = onlineUserIds.has(otherId);
+        const dot = $("thread-avatar-dot");
+        if (dot) dot.classList.toggle("online", online);
+        if (online) {
+          $("thread-subtitle").textContent = "online";
+          return;
+        }
+        const { data } = await sb.from("profiles").select("last_seen_at").eq("id", otherId).maybeSingle();
+        if (currentThreadConv !== conv || otherIsTypingInThread) return; // thread changed while this was in flight
+        $("thread-subtitle").textContent = data ? relativeLastSeen(data.last_seen_at) : "";
       }
 
       /* ---------------- Incoming-call push notifications ----------------
@@ -4082,6 +4228,31 @@
       let threadChannel = null; // Realtime subscription for the open thread
       let conversationsChannel = null; // Realtime subscription for list-level updates
 
+      // Typing indicator state for the open 1:1 thread. "Their" side is a
+      // broadcast event received over threadChannel; "my" side sends one.
+      let otherIsTypingInThread = false;
+      let typingHideTimeout = null; // safety net in case a "stopped typing" broadcast is dropped
+      let myTypingActive = false;
+      let myTypingStopTimer = null;
+
+      function handleIncomingTyping(isTyping) {
+        clearTimeout(typingHideTimeout);
+        otherIsTypingInThread = isTyping;
+        if (isTyping) {
+          const el = $("thread-subtitle");
+          el.textContent = "typing…";
+          el.classList.add("typing");
+          typingHideTimeout = setTimeout(() => {
+            otherIsTypingInThread = false;
+            $("thread-subtitle").classList.remove("typing");
+            refreshOpenThreadPresence();
+          }, 6000);
+        } else {
+          $("thread-subtitle").classList.remove("typing");
+          refreshOpenThreadPresence();
+        }
+      }
+
       function wsUrlToHttp(wsUrl) {
         return wsUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
       }
@@ -4173,7 +4344,10 @@
           item.className = "hub-item";
           item.style.cursor = "pointer";
           item.innerHTML = `
-            <div class="hub-item-avatar">${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="">` : escapeHtml(initialsFor(otherDisplay))}</div>
+            <div class="avatar-presence-wrap">
+              <div class="hub-item-avatar">${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="">` : escapeHtml(initialsFor(otherDisplay))}</div>
+              <span class="presence-dot" data-presence-for="${escapeHtml(otherId)}"></span>
+            </div>
             <div class="hub-item-body">
               <div class="hub-item-title">${escapeHtml(otherDisplay)}</div>
               <div class="hub-item-sub">${escapeHtml(conv.last_message_preview || "No messages yet")}${conv.last_message_at ? " · " + relativeTime(conv.last_message_at) : ""}</div>
@@ -4194,6 +4368,7 @@
           list.appendChild(item);
         }
 
+        updateAllPresenceDots();
         subscribeToConversationList(myId);
       }
 
@@ -4334,12 +4509,21 @@
             ? conv.user_b_username || conv.user_b_email
             : conv.user_a_username || conv.user_a_email;
 
+        // Reset typing state left over from whatever thread was open before.
+        clearTimeout(typingHideTimeout);
+        otherIsTypingInThread = false;
+        clearTimeout(myTypingStopTimer);
+        myTypingActive = false;
+        $("thread-subtitle").classList.remove("typing");
+        $("thread-subtitle").textContent = "";
+
         // Show something immediately from the conversation's own snapshot,
         // then refine it with the live profile once that loads (covers the
         // case where they've since changed their username or added a photo).
         $("thread-title").textContent = fallbackDisplay;
         $("thread-avatar").textContent = initialsFor(fallbackDisplay);
         setChatsPane("thread");
+        refreshOpenThreadPresence();
 
         sb.from("profiles")
           .select("username,email,avatar_url")
@@ -4363,6 +4547,7 @@
         await updateThreadBlockedState(otherId);
       }
       $("thread-avatar").onclick = () => openContactInfo();
+      $("thread-title").onclick = () => openContactInfo();
 
       async function updateThreadBlockedState(otherId) {
         const myId = currentSession.user.id;
@@ -4522,6 +4707,10 @@
             { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
             () => loadThreadMessages(conversationId), // simplest way to reflect a read-receipt flip
           )
+          .on("broadcast", { event: "typing" }, ({ payload }) => {
+            if (!payload || payload.user_id === currentSession.user.id) return;
+            handleIncomingTyping(payload.is_typing);
+          })
           .subscribe();
       }
 
@@ -4530,6 +4719,10 @@
           sb.removeChannel(threadChannel);
           threadChannel = null;
         }
+        clearTimeout(typingHideTimeout);
+        clearTimeout(myTypingStopTimer);
+        otherIsTypingInThread = false;
+        myTypingActive = false;
         currentThreadConv = null;
         setChatsPane("list");
         loadConversations();
@@ -4810,6 +5003,8 @@
         const myId = currentSession.user.id;
         const myEmail = currentSession.user.email;
 
+        stopMyTyping();
+
         const { error } = await sb.from("messages").insert({
           conversation_id: conv.id,
           sender_id: myId,
@@ -4825,6 +5020,35 @@
       $("thread-send-btn").onclick = sendThreadMessage;
       $("thread-input").addEventListener("keydown", (e) => {
         if (e.key === "Enter") sendThreadMessage();
+      });
+
+      // Broadcasts "typing" the moment composing starts, then "stopped
+      // typing" after a short pause -- same channel already used for live
+      // message delivery in this thread, just a different event type.
+      function stopMyTyping() {
+        clearTimeout(myTypingStopTimer);
+        if (!myTypingActive) return;
+        myTypingActive = false;
+        if (threadChannel && currentSession) {
+          threadChannel.send({
+            type: "broadcast",
+            event: "typing",
+            payload: { user_id: currentSession.user.id, is_typing: false },
+          });
+        }
+      }
+      $("thread-input").addEventListener("input", () => {
+        if (!threadChannel || !currentThreadConv) return;
+        if (!myTypingActive) {
+          myTypingActive = true;
+          threadChannel.send({
+            type: "broadcast",
+            event: "typing",
+            payload: { user_id: currentSession.user.id, is_typing: true },
+          });
+        }
+        clearTimeout(myTypingStopTimer);
+        myTypingStopTimer = setTimeout(stopMyTyping, 2500);
       });
 
       const MAX_CHAT_MEDIA_BYTES = 25 * 1024 * 1024; // matches the in-call file-share limit
@@ -4936,6 +5160,50 @@
       let currentGroupThread = null;
       let groupThreadChannel = null;
       let groupsListChannel = null;
+
+      // Typing indicator state for the open group thread -- unlike 1:1,
+      // several people can be typing at once, so this is a map rather than
+      // a single flag, each entry with its own drop-timeout safety net.
+      let groupTypingUsers = new Map(); // userId -> { username, timeout }
+      let myGroupTypingActive = false;
+      let myGroupTypingStopTimer = null;
+
+      function clearGroupTypingState() {
+        groupTypingUsers.forEach((v) => clearTimeout(v.timeout));
+        groupTypingUsers = new Map();
+      }
+
+      function renderGroupTypingSubtitle() {
+        const el = $("group-thread-subtitle");
+        if (!el) return;
+        const names = Array.from(groupTypingUsers.values()).map((v) => v.username || "Someone");
+        el.classList.toggle("typing", names.length > 0);
+        if (!names.length) {
+          el.textContent = el.dataset.defaultText || "";
+        } else if (names.length === 1) {
+          el.textContent = `${names[0]} is typing…`;
+        } else if (names.length === 2) {
+          el.textContent = `${names[0]} and ${names[1]} are typing…`;
+        } else {
+          el.textContent = `${names[0]}, ${names[1]} and ${names.length - 2} more are typing…`;
+        }
+      }
+
+      function handleIncomingGroupTyping(payload) {
+        if (!payload || !payload.user_id) return;
+        const existing = groupTypingUsers.get(payload.user_id);
+        if (existing) clearTimeout(existing.timeout);
+        if (payload.is_typing) {
+          const timeout = setTimeout(() => {
+            groupTypingUsers.delete(payload.user_id);
+            renderGroupTypingSubtitle();
+          }, 6000); // safety net in case a "stopped typing" broadcast is dropped
+          groupTypingUsers.set(payload.user_id, { username: payload.username, timeout });
+        } else {
+          groupTypingUsers.delete(payload.user_id);
+        }
+        renderGroupTypingSubtitle();
+      }
 
       let currentGroupsFilter = "all";
       document.querySelectorAll("[data-groups-filter]").forEach((btn) => {
@@ -5157,6 +5425,25 @@
           $("group-thread-avatar").textContent = initialsFor(group.name);
         }
         setGroupsPane("thread");
+
+        // Reset typing state left over from whatever group thread was open
+        // before, then show a member count until anyone starts typing.
+        clearGroupTypingState();
+        clearTimeout(myGroupTypingStopTimer);
+        myGroupTypingActive = false;
+        const subtitleEl = $("group-thread-subtitle");
+        subtitleEl.classList.remove("typing");
+        subtitleEl.textContent = "";
+        subtitleEl.dataset.defaultText = "";
+        sb.from("group_members")
+          .select("user_id", { count: "exact", head: true })
+          .eq("group_id", group.id)
+          .then(({ count }) => {
+            if (currentGroupThread !== group || !count) return;
+            const text = `${count} member${count === 1 ? "" : "s"}`;
+            subtitleEl.dataset.defaultText = text;
+            if (!groupTypingUsers.size) subtitleEl.textContent = text;
+          });
 
         await loadGroupMessages(group.id);
         await markGroupMessagesRead(group.id);
@@ -5565,6 +5852,10 @@
             { event: "INSERT", schema: "public", table: "group_message_reads" },
             () => loadGroupMessages(groupId), // simplest way to refresh "Seen by N" counts live
           )
+          .on("broadcast", { event: "typing" }, ({ payload }) => {
+            if (!payload || payload.user_id === currentSession.user.id) return;
+            handleIncomingGroupTyping(payload);
+          })
           .subscribe();
       }
 
@@ -5573,6 +5864,9 @@
           sb.removeChannel(groupThreadChannel);
           groupThreadChannel = null;
         }
+        clearGroupTypingState();
+        clearTimeout(myGroupTypingStopTimer);
+        myGroupTypingActive = false;
         currentGroupThread = null;
         setGroupsPane("list");
         loadGroups();
@@ -5618,6 +5912,8 @@
         const myId = currentSession.user.id;
         const myEmail = currentSession.user.email;
 
+        stopMyGroupTyping();
+
         const { error } = await sb.from("group_messages").insert({
           group_id: group.id,
           sender_id: myId,
@@ -5633,6 +5929,36 @@
       $("group-thread-send-btn").onclick = sendGroupThreadMessage;
       $("group-thread-input").addEventListener("keydown", (e) => {
         if (e.key === "Enter") sendGroupThreadMessage();
+      });
+
+      // Same pattern as the 1:1 thread's typing broadcast, just over
+      // groupThreadChannel and with a username in the payload since a group
+      // has to say *who's* typing, not just that someone is.
+      function stopMyGroupTyping() {
+        clearTimeout(myGroupTypingStopTimer);
+        if (!myGroupTypingActive) return;
+        myGroupTypingActive = false;
+        if (groupThreadChannel && currentSession) {
+          groupThreadChannel.send({
+            type: "broadcast",
+            event: "typing",
+            payload: { user_id: currentSession.user.id, is_typing: false },
+          });
+        }
+      }
+      $("group-thread-input").addEventListener("input", () => {
+        if (!groupThreadChannel || !currentGroupThread) return;
+        const myUsername = (myProfile && myProfile.username) || currentSession.user.email;
+        if (!myGroupTypingActive) {
+          myGroupTypingActive = true;
+          groupThreadChannel.send({
+            type: "broadcast",
+            event: "typing",
+            payload: { user_id: currentSession.user.id, username: myUsername, is_typing: true },
+          });
+        }
+        clearTimeout(myGroupTypingStopTimer);
+        myGroupTypingStopTimer = setTimeout(stopMyGroupTyping, 2500);
       });
 
       $("group-attach").onclick = () => $("group-file-input").click();

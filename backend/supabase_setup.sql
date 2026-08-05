@@ -705,3 +705,16 @@ create policy "group_messages_delete_creator" on group_messages
       where g.id = group_messages.group_id and g.created_by = auth.uid()
     )
   );
+
+-- ---------------------------------------------------------------------------
+-- Presence & typing indicators (Phase A). "Online now" is handled entirely
+-- client-side via Supabase Realtime Presence (ephemeral, no table needed --
+-- it disappears the instant a socket disconnects). This column is only for
+-- "last seen" once someone's presence drops: each signed-in tab periodically
+-- (and on visibility change / unload) writes its own last_seen_at, covered
+-- by the existing profiles_update_own policy above (auth.uid() = id), so no
+-- new policy is needed here.
+-- ---------------------------------------------------------------------------
+
+alter table profiles add column if not exists last_seen_at timestamptz;
+

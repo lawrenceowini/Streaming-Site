@@ -1877,7 +1877,6 @@
         }
         #hub-panel-chats,
         #hub-panel-groups {
-          display: flex !important;
           flex-direction: row !important;
           padding: 0;
           height: 100%;
@@ -1913,7 +1912,7 @@
           display: flex;
         }
         #hub-panel-call {
-          display: grid !important;
+          display: grid;
           grid-template-columns: 340px 1fr;
           column-gap: 24px;
           align-content: start;
@@ -3478,13 +3477,17 @@
           );
         ["call", "schedule", "chats", "groups", "profile"].forEach((t) => {
           const isActive = t === tab;
-          // #hub-panel-chats and #hub-panel-groups are flex columns in CSS
-          // -- "block" would silently override that via inline style, the
-          // same bug that broke the sidebar layout earlier.
+          // #hub-panel-chats and #hub-panel-groups are flex rows on desktop
+          // (columns on mobile) -- "block" would silently override that via
+          // inline style, the same bug that broke the sidebar layout earlier.
+          // #hub-panel-call is a CSS grid on desktop, so it needs "grid"
+          // rather than "block" there or its two-column split collapses.
           $(`hub-panel-${t}`).style.display = isActive
             ? t === "chats" || t === "groups"
               ? "flex"
-              : "block"
+              : t === "call" && isDesktopHub()
+                ? "grid"
+                : "block"
             : "none";
         });
         if (tab === "call") loadCallFilter(currentCallFilter);
@@ -3499,6 +3502,21 @@
       }
       document.querySelectorAll(".hub-tab").forEach((btn) => {
         btn.onclick = () => switchHubTab(btn.dataset.tab);
+      });
+
+      // Re-apply the active tab's display mode and chat/group pane state
+      // when the window crosses the 900px desktop breakpoint (e.g. resizing
+      // a browser window), since switchHubTab only sets inline styles at
+      // the moment a tab is clicked.
+      let lastHubIsDesktop = isDesktopHub();
+      window.addEventListener("resize", () => {
+        const nowDesktop = isDesktopHub();
+        if (nowDesktop === lastHubIsDesktop) return;
+        lastHubIsDesktop = nowDesktop;
+        const activeBtn = document.querySelector(".hub-tab.active");
+        if (activeBtn) switchHubTab(activeBtn.dataset.tab);
+        setChatsPane(currentThreadConv ? "thread" : "list");
+        setGroupsPane(currentGroupThread ? "thread" : "list");
       });
 
       // Turns an email string into avatar initials, e.g. "sam@x.com" -> "S".

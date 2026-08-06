@@ -911,6 +911,115 @@
         margin: 4px 2px;
       }
 
+      /* ---- Link previews ---- */
+      .msg-link {
+        color: inherit;
+        text-decoration: underline;
+      }
+      .link-preview-card {
+        display: block;
+        margin-top: 6px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        text-decoration: none;
+        color: inherit;
+        background: rgba(0, 0, 0, 0.15);
+        max-width: 260px;
+      }
+      .chat-msg.them .link-preview-card {
+        background: var(--bg-panel);
+      }
+      .link-preview-image {
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+        display: block;
+        background: var(--bg-panel-2);
+      }
+      .link-preview-body {
+        padding: 6px 9px;
+        text-align: left;
+      }
+      .link-preview-title {
+        font-size: 12px;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+      }
+      .link-preview-desc {
+        font-size: 11px;
+        color: var(--text-dim);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        margin-top: 2px;
+      }
+      .chat-msg.me .link-preview-desc {
+        color: rgba(26, 18, 0, 0.75);
+      }
+      .link-preview-host {
+        font-size: 10px;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        margin-top: 4px;
+      }
+      .chat-msg.me .link-preview-host {
+        color: rgba(26, 18, 0, 0.6);
+      }
+
+      /* ---- Image lightbox ---- */
+      .image-lightbox-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+        cursor: zoom-out;
+      }
+      .image-lightbox-img {
+        max-width: 90vw;
+        max-height: 90vh;
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        cursor: default;
+      }
+      .image-lightbox-close {
+        position: absolute;
+        top: 18px;
+        right: 22px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: #fff;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .image-lightbox-close:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      /* ---- Drag-and-drop file upload ---- */
+      #chat-thread-view.drop-active,
+      #group-thread-view.drop-active {
+        outline: 2px dashed var(--accent);
+        outline-offset: -8px;
+        background: rgba(232, 163, 61, 0.06);
+      }
+
       .schedule-form {
         margin-bottom: 14px;
         padding-bottom: 14px;
@@ -3979,6 +4088,39 @@
         setGroupsPane(currentGroupThread ? "thread" : "list");
       });
 
+      // ---- Keyboard shortcuts ----
+      // Escape closes whichever floating UI is currently on top, checked in
+      // the order a person would expect to back out of: an open image
+      // first, then a popover, then an in-progress reply. It deliberately
+      // does NOT close the open thread itself -- that's a bigger action
+      // than "Escape" should trigger unprompted.
+      // "/" jumps to the active list's search box, mirroring the Slack/
+      // Discord convention -- guarded so it doesn't hijack typing in any
+      // other input or textarea (including the message composer itself).
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          if (imageLightboxEl) return closeImageLightbox();
+          if (reactionPickerEl) return closeReactionPicker();
+          if (listContextMenuEl) return closeListContextMenu();
+          if (replyingToMessage) return cancelReply("chat");
+          if (groupReplyingToMessage) return cancelReply("group");
+          return;
+        }
+        if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          const tag = (document.activeElement && document.activeElement.tagName) || "";
+          if (tag === "INPUT" || tag === "TEXTAREA") return;
+          const activeTab = document.querySelector(".hub-tab.active");
+          if (!activeTab) return;
+          if (activeTab.dataset.tab === "chats") {
+            e.preventDefault();
+            $("chats-search-input").focus();
+          } else if (activeTab.dataset.tab === "groups") {
+            e.preventDefault();
+            $("groups-search-input").focus();
+          }
+        }
+      });
+
       // Turns an email string into avatar initials, e.g. "sam@x.com" -> "S".
       function initialsFor(text) {
         const first = (text || "?").trim().charAt(0).toUpperCase();
@@ -4803,6 +4945,109 @@
         }
       }
 
+      /* ================= Message polish (Phase D) =================
+         Link previews, an inline image lightbox, drag-and-drop upload,
+         incoming-message sound, and a couple of keyboard shortcuts. */
+
+      // ---- Auto-linking + link previews ----
+      // escapeHtml runs first, so this only ever wraps tokens inside text
+      // that's already been neutralized -- no way for message content to
+      // inject markup here.
+      function linkifyText(text) {
+        return escapeHtml(text).replace(
+          /(https?:\/\/[^\s<]+)/g,
+          (url) => `<a href="${url}" target="_blank" rel="noopener" class="msg-link">${url}</a>`,
+        );
+      }
+
+      // Rich previews (title/description/image) need the target page's own
+      // metadata, which a browser can't fetch directly (CORS) -- this uses
+      // Microlink's public preview API rather than adding a backend
+      // endpoint. It's a free-tier third-party service: no key needed, but
+      // it's rate-limited, so usage here is deliberately capped per thread
+      // open (linkPreviewFetchBudget below) rather than fetched for every
+      // linked message in a long history.
+      const linkPreviewCache = new Map(); // url -> preview object, or null if it has no useful metadata
+      let linkPreviewFetchBudget = 0;
+
+      async function fetchLinkPreview(url) {
+        if (linkPreviewCache.has(url)) return linkPreviewCache.get(url);
+        try {
+          const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}&meta`);
+          const json = await res.json();
+          if (json.status !== "success" || !json.data || (!json.data.title && !json.data.description)) {
+            linkPreviewCache.set(url, null);
+            return null;
+          }
+          const preview = {
+            title: json.data.title || "",
+            description: json.data.description || "",
+            image: (json.data.image && json.data.image.url) || (json.data.logo && json.data.logo.url) || "",
+            host: ((json.data.publisher || new URL(url).hostname) + "").replace(/^www\./, ""),
+          };
+          linkPreviewCache.set(url, preview);
+          return preview;
+        } catch (e) {
+          linkPreviewCache.set(url, null); // network error, blocked, or malformed URL -- fall back to the plain link
+          return null;
+        }
+      }
+
+      function buildLinkPreviewCard(preview, url) {
+        const a = document.createElement("a");
+        a.className = "link-preview-card";
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.innerHTML = `
+          ${preview.image ? `<img class="link-preview-image" src="${escapeHtml(preview.image)}" alt="" loading="lazy">` : ""}
+          <div class="link-preview-body">
+            ${preview.title ? `<div class="link-preview-title">${escapeHtml(preview.title)}</div>` : ""}
+            ${preview.description ? `<div class="link-preview-desc">${escapeHtml(preview.description)}</div>` : ""}
+            <div class="link-preview-host">${escapeHtml(preview.host)}</div>
+          </div>
+        `;
+        return a;
+      }
+
+      function appendLinkPreview(bubble, url) {
+        if (linkPreviewFetchBudget <= 0) return; // keeps a long thread history from firing dozens of requests on open
+        const cached = linkPreviewCache.get(url);
+        if (cached === null) return; // already known to have no useful preview
+        if (cached) {
+          bubble.appendChild(buildLinkPreviewCard(cached, url));
+          return;
+        }
+        linkPreviewFetchBudget--;
+        fetchLinkPreview(url).then((preview) => {
+          if (!preview || !bubble.isConnected) return; // thread may have closed, or the message scrolled out, by the time this resolves
+          bubble.appendChild(buildLinkPreviewCard(preview, url));
+        });
+      }
+
+      // ---- Image lightbox ----
+      let imageLightboxEl = null;
+      function closeImageLightbox() {
+        if (!imageLightboxEl) return;
+        imageLightboxEl.remove();
+        imageLightboxEl = null;
+      }
+      function openImageLightbox(url) {
+        closeImageLightbox();
+        const overlay = document.createElement("div");
+        overlay.className = "image-lightbox-overlay";
+        overlay.innerHTML = `
+          <button class="image-lightbox-close" title="Close">✕</button>
+          <img class="image-lightbox-img" src="${escapeHtml(url)}" alt="">
+        `;
+        overlay.addEventListener("click", (e) => {
+          if (e.target === overlay) closeImageLightbox();
+        });
+        overlay.querySelector(".image-lightbox-close").addEventListener("click", closeImageLightbox);
+        document.body.appendChild(overlay);
+        imageLightboxEl = overlay;
+      }
+
       /* ================= Chats: persistent 1:1 messaging ================= */
       // Unlike the in-call chat (ephemeral, over a WebRTC DataChannel, gone
       // once the call ends), this is durable: stored in Supabase so it's
@@ -5070,8 +5315,11 @@
                   .update({ status: "delivered" })
                   .eq("id", payload.new.id)
                   .eq("status", "sent");
-                const prefs = await getConversationPrefs(payload.new.conversation_id);
-                if (!prefs.muted) playChatTone(prefs.custom_tone);
+                const isViewingThisThread = currentThreadConv && currentThreadConv.id === payload.new.conversation_id;
+                if (!isViewingThisThread) {
+                  const prefs = await getConversationPrefs(payload.new.conversation_id);
+                  if (!prefs.muted) playChatTone(prefs.custom_tone);
+                }
               }
             },
           )
@@ -5230,6 +5478,7 @@
         log.innerHTML = "";
         threadMessagesById = {};
         lastThreadDateKeyRef = { value: null };
+        linkPreviewFetchBudget = 20;
         if (error) {
           console.warn("Could not load messages:", error);
           return;
@@ -5282,18 +5531,15 @@
             audio.className = "voice-message-player";
             bubble.appendChild(audio);
           } else if (isImage && url) {
-            const link = document.createElement("a");
-            link.href = url;
-            link.target = "_blank";
-            link.rel = "noopener";
             const img = document.createElement("img");
             img.className = "file-thumb";
             img.style.width = "160px";
             img.style.height = "auto";
             img.style.borderRadius = "8px";
+            img.style.cursor = "zoom-in";
             img.src = url;
-            link.appendChild(img);
-            bubble.appendChild(link);
+            img.addEventListener("click", () => openImageLightbox(url));
+            bubble.appendChild(img);
           } else {
             const fileBubble = document.createElement("div");
             fileBubble.className = "file-bubble";
@@ -5324,7 +5570,9 @@
             bubble.appendChild(caption);
           }
         } else {
-          bubble.appendChild(document.createTextNode(m.body));
+          bubble.insertAdjacentHTML("beforeend", linkifyText(m.body));
+          const links = extractLinks(m.body);
+          if (links.length) appendLinkPreview(bubble, links[0]);
         }
 
         if (mine) {
@@ -5759,48 +6007,119 @@
 
       const MAX_CHAT_MEDIA_BYTES = 25 * 1024 * 1024; // matches the in-call file-share limit
       $("thread-attach").onclick = () => $("thread-file-input").click();
-      $("thread-file-input").addEventListener("change", async () => {
+      $("thread-file-input").addEventListener("change", () => {
         const file = $("thread-file-input").files[0];
         $("thread-file-input").value = ""; // lets the same file be picked again later
-        if (!file || !currentThreadConv) return;
+        if (file) sendFileMessage("chat", file);
+      });
+
+      // Shared by the file-picker (attach button) and drag-and-drop below --
+      // one place for the upload+insert logic instead of two copies that
+      // could quietly drift out of sync for chats, and equivalently for
+      // groups.
+      async function sendFileMessage(kind, file) {
+        if (!file) return;
+        if (kind === "chat" && !currentThreadConv) return;
+        if (kind === "group" && !currentGroupThread) return;
         if (file.size > MAX_CHAT_MEDIA_BYTES) {
           alert(`That file is too large to send (max ${formatFileSize(MAX_CHAT_MEDIA_BYTES)}).`);
           return;
         }
-        const conv = currentThreadConv;
         const myId = currentSession.user.id;
         const myEmail = currentSession.user.email;
+        const attachBtn = $(kind === "chat" ? "thread-attach" : "group-attach");
+        const isImage = file.type && file.type.startsWith("image/");
 
-        $("thread-attach").disabled = true;
+        if (attachBtn) attachBtn.disabled = true;
         try {
-          const path = `${conv.id}/${crypto.randomUUID()}-${file.name}`;
-          const { error: uploadError } = await sb.storage
-            .from("chat-media")
-            .upload(path, file, { contentType: file.type || "application/octet-stream" });
-          if (uploadError) {
-            alert("Could not send that file: " + uploadError.message);
-            return;
+          if (kind === "chat") {
+            const conv = currentThreadConv;
+            const path = `${conv.id}/${crypto.randomUUID()}-${file.name}`;
+            const { error: uploadError } = await sb.storage
+              .from("chat-media")
+              .upload(path, file, { contentType: file.type || "application/octet-stream" });
+            if (uploadError) {
+              alert("Could not send that file: " + uploadError.message);
+              return;
+            }
+            const { error: insertError } = await sb.from("messages").insert({
+              conversation_id: conv.id,
+              sender_id: myId,
+              sender_email: myEmail,
+              body: "",
+              media_path: path,
+              media_mime: file.type || "application/octet-stream",
+              media_name: file.name,
+              media_size: file.size,
+            });
+            if (insertError) {
+              alert("Could not send that file: " + insertError.message);
+              return;
+            }
+            await finishSendingMessage(conv, isImage ? "📷 Photo" : `📎 ${file.name}`);
+          } else {
+            const group = currentGroupThread;
+            const path = `group-${group.id}/${crypto.randomUUID()}-${file.name}`;
+            const { error: uploadError } = await sb.storage
+              .from("chat-media")
+              .upload(path, file, { contentType: file.type || "application/octet-stream" });
+            if (uploadError) {
+              alert("Could not send that file: " + uploadError.message);
+              return;
+            }
+            const { error: insertError } = await sb.from("group_messages").insert({
+              group_id: group.id,
+              sender_id: myId,
+              sender_email: myEmail,
+              body: "",
+              media_path: path,
+              media_mime: file.type || "application/octet-stream",
+              media_name: file.name,
+              media_size: file.size,
+            });
+            if (insertError) {
+              alert("Could not send that file: " + insertError.message);
+              return;
+            }
+            await finishSendingGroupMessage(group, isImage ? "📷 Photo" : `📎 ${file.name}`);
           }
-          const { error: insertError } = await sb.from("messages").insert({
-            conversation_id: conv.id,
-            sender_id: myId,
-            sender_email: myEmail,
-            body: "",
-            media_path: path,
-            media_mime: file.type || "application/octet-stream",
-            media_name: file.name,
-            media_size: file.size,
-          });
-          if (insertError) {
-            alert("Could not send that file: " + insertError.message);
-            return;
-          }
-          const isImage = file.type && file.type.startsWith("image/");
-          await finishSendingMessage(conv, isImage ? "📷 Photo" : `📎 ${file.name}`);
         } finally {
-          $("thread-attach").disabled = false;
+          if (attachBtn) attachBtn.disabled = false;
         }
-      });
+      }
+
+      // ---- Drag-and-drop upload ----
+      // Dropping a file anywhere on the open thread sends it the same way
+      // the attach button would. dragCounter (rather than a single
+      // dragenter/dragleave pair) is needed because child elements inside
+      // the drop target fire their own enter/leave events as the cursor
+      // crosses them, which would otherwise flicker the highlight off
+      // every time it passes over a message bubble.
+      function setupDropZone(zoneId, kind) {
+        const zone = $(zoneId);
+        let dragCounter = 0;
+        zone.addEventListener("dragover", (e) => e.preventDefault());
+        zone.addEventListener("dragenter", (e) => {
+          e.preventDefault();
+          if (!e.dataTransfer.types.includes("Files")) return;
+          dragCounter++;
+          zone.classList.add("drop-active");
+        });
+        zone.addEventListener("dragleave", () => {
+          dragCounter = Math.max(0, dragCounter - 1);
+          if (dragCounter === 0) zone.classList.remove("drop-active");
+        });
+        zone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          dragCounter = 0;
+          zone.classList.remove("drop-active");
+          const file = e.dataTransfer.files && e.dataTransfer.files[0];
+          if (file) sendFileMessage(kind, file);
+        });
+      }
+      setupDropZone("chat-thread-view", "chat");
+      setupDropZone("group-thread-view", "group");
+
 
       async function sendVoiceMessage(blob, durationMs) {
         if (!currentThreadConv) return;
@@ -6141,6 +6460,14 @@
           .on("postgres_changes", { event: "*", schema: "public", table: "group_messages" }, () =>
             loadGroups(),
           )
+          // Groups don't have a per-group mute preference (unlike 1:1
+          // chats), so this always plays -- just skipped for the exact
+          // group already open, same as the 1:1 side.
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "group_messages" }, (payload) => {
+            if (payload.new.sender_id === myId) return;
+            const isViewingThisGroup = currentGroupThread && currentGroupThread.id === payload.new.group_id;
+            if (!isViewingThisGroup) playChatTone("default");
+          })
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "group_members", filter: `user_id=eq.${myId}` },
@@ -6489,6 +6816,7 @@
         log.innerHTML = "";
         groupMessagesById = {};
         lastGroupDateKeyRef = { value: null };
+        linkPreviewFetchBudget = 20;
         if (error) {
           console.warn("Could not load group messages:", error);
           return;
@@ -6547,18 +6875,15 @@
             audio.className = "voice-message-player";
             bubble.appendChild(audio);
           } else if (isImage && url) {
-            const link = document.createElement("a");
-            link.href = url;
-            link.target = "_blank";
-            link.rel = "noopener";
             const img = document.createElement("img");
             img.className = "file-thumb";
             img.style.width = "160px";
             img.style.height = "auto";
             img.style.borderRadius = "8px";
+            img.style.cursor = "zoom-in";
             img.src = url;
-            link.appendChild(img);
-            bubble.appendChild(link);
+            img.addEventListener("click", () => openImageLightbox(url));
+            bubble.appendChild(img);
           } else {
             const fileBubble = document.createElement("div");
             fileBubble.className = "file-bubble";
@@ -6589,7 +6914,9 @@
             bubble.appendChild(caption);
           }
         } else {
-          bubble.appendChild(document.createTextNode(m.body));
+          bubble.insertAdjacentHTML("beforeend", linkifyText(m.body));
+          const links = extractLinks(m.body);
+          if (links.length) appendLinkPreview(bubble, links[0]);
         }
 
         if (mine) {
@@ -6789,47 +7116,10 @@
       });
 
       $("group-attach").onclick = () => $("group-file-input").click();
-      $("group-file-input").addEventListener("change", async () => {
+      $("group-file-input").addEventListener("change", () => {
         const file = $("group-file-input").files[0];
         $("group-file-input").value = "";
-        if (!file || !currentGroupThread) return;
-        if (file.size > MAX_CHAT_MEDIA_BYTES) {
-          alert(`That file is too large to send (max ${formatFileSize(MAX_CHAT_MEDIA_BYTES)}).`);
-          return;
-        }
-        const group = currentGroupThread;
-        const myId = currentSession.user.id;
-        const myEmail = currentSession.user.email;
-
-        $("group-attach").disabled = true;
-        try {
-          const path = `group-${group.id}/${crypto.randomUUID()}-${file.name}`;
-          const { error: uploadError } = await sb.storage
-            .from("chat-media")
-            .upload(path, file, { contentType: file.type || "application/octet-stream" });
-          if (uploadError) {
-            alert("Could not send that file: " + uploadError.message);
-            return;
-          }
-          const { error: insertError } = await sb.from("group_messages").insert({
-            group_id: group.id,
-            sender_id: myId,
-            sender_email: myEmail,
-            body: "",
-            media_path: path,
-            media_mime: file.type || "application/octet-stream",
-            media_name: file.name,
-            media_size: file.size,
-          });
-          if (insertError) {
-            alert("Could not send that file: " + insertError.message);
-            return;
-          }
-          const isImage = file.type && file.type.startsWith("image/");
-          await finishSendingGroupMessage(group, isImage ? "📷 Photo" : `📎 ${file.name}`);
-        } finally {
-          $("group-attach").disabled = false;
-        }
+        if (file) sendFileMessage("group", file);
       });
 
       async function sendGroupVoiceMessage(blob, durationMs) {

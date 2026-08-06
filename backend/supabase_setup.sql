@@ -838,3 +838,97 @@ begin
   end if;
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Message management (Phase E): edit, delete for me / delete for everyone,
+-- forward, and multi-select. Forward and multi-select need nothing here --
+-- forwarding is just a normal insert into the target conversation/group
+-- (media is re-uploaded rather than reusing the original path, since the
+-- storage policies below are scoped by conversation/group folder, so a
+-- forwarded file needs its own copy under the destination's folder to be
+-- readable there), and multi-select is a frontend-only UI mode over
+-- actions that already exist.
+-- ---------------------------------------------------------------------------
+
+alter table messages add column if not exists edited_at timestamptz;
+alter table messages add column if not exists deleted_at timestamptz;
+alter table group_messages add column if not exists edited_at timestamptz;
+alter table group_messages add column if not exists deleted_at timestamptz;
+
+-- group_messages never had an update policy before this (only insert /
+-- select / delete-by-creator), so editing or soft-deleting your own group
+-- message needs one. Restricted to the sender, unlike the 1:1 messages
+-- table's existing "messages_update_participant" policy below.
+drop policy if exists "group_messages_update_own" on group_messages;
+create policy "group_messages_update_own" on group_messages
+  for update using (sender_id = auth.uid()) with check (sender_id = auth.uid());
+
+-- NOTE on 1:1 messages: "messages_update_participant" (added earlier, for
+-- read-receipt status flips) lets *either* participant update *any* column
+-- on a message, not just the sender -- tightening that to "only the sender
+-- may change body/media, either participant may change status" needs a
+-- trigger-based column-level check, which is more than this phase covers.
+-- Edit and delete-for-everyone are therefore enforced in the frontend (only
+-- shown as options on your own messages, and every update call filters on
+-- sender_id) rather than at the database level for the 1:1 case.
+
+-- "Delete for me": the message stays intact for everyone else, just hidden
+-- from the person who deleted it -- a personal view preference, not a real
+-- deletion, so it's a per-user hide list rather than removing or altering
+-- the row itself.
+create table if not exists message_hidden_for (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references messages(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (message_id, user_id)
+);
+alter table message_hidden_for enable row level security;
+
+drop policy if exists "message_hidden_for_select_own" on message_hidden_for;
+create policy "message_hidden_for_select_own" on message_hidden_for
+  for select using (user_id = auth.uid());
+
+drop policy if exists "message_hidden_for_insert_own" on message_hidden_for;
+create policy "message_hidden_for_insert_own" on message_hidden_for
+  for insert with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from messages m
+      join conversations c on c.id = m.conversation_id
+      where m.id = message_hidden_for.message_id
+        and (c.user_a_id = auth.uid() or c.user_b_id = auth.uid())
+    )
+  );
+
+drop policy if exists "message_hidden_for_delete_own" on message_hidden_for;
+create policy "message_hidden_for_delete_own" on message_hidden_for
+  for delete using (user_id = auth.uid());
+
+create table if not exists group_message_hidden_for (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references group_messages(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (message_id, user_id)
+);
+alter table group_message_hidden_for enable row level security;
+
+drop policy if exists "group_message_hidden_for_select_own" on group_message_hidden_for;
+create policy "group_message_hidden_for_select_own" on group_message_hidden_for
+  for select using (user_id = auth.uid());
+
+drop policy if exists "group_message_hidden_for_insert_own" on group_message_hidden_for;
+create policy "group_message_hidden_for_insert_own" on group_message_hidden_for
+  for insert with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from group_messages gm
+      where gm.id = group_message_hidden_for.message_id
+        and public.is_group_member(gm.group_id, auth.uid())
+    )
+  );
+
+drop policy if exists "group_message_hidden_for_delete_own" on group_message_hidden_for;
+create policy "group_message_hidden_for_delete_own" on group_message_hidden_for
+  for delete using (user_id = auth.uid());
+

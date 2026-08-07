@@ -2097,6 +2097,12 @@
         border-radius: 10px;
         border: 1px solid var(--line);
       }
+      .thread-loading-older {
+        text-align: center;
+        color: var(--text-dim);
+        font-size: 11px;
+        padding: 8px 0;
+      }
 
       /* ---- Reply / quote ---- */
       .quote-block {
@@ -5651,6 +5657,17 @@
       let threadMessagesById = {};
       let lastThreadDateKeyRef = { value: null };
 
+      // Pagination: only the most recent MESSAGES_PAGE_SIZE messages load
+      // when a thread opens; older ones load in further pages as the person
+      // scrolls up, rather than fetching an entire (potentially huge)
+      // history up front every time.
+      const MESSAGES_PAGE_SIZE = 50;
+      let threadOldestLoadedAt = null; // created_at of the oldest message currently rendered
+      let threadHasMoreOlder = true;
+      let threadLoadingOlder = false;
+      let threadHiddenIds = new Set(); // this user's "deleted for me" set, fetched once per thread-open
+      let topThreadDateKeyRef = { value: null }; // date of the oldest currently-rendered message, for de-duplicating the divider at a page seam
+
       // Typing indicator state for the open 1:1 thread. "Their" side is a
       // broadcast event received over threadChannel; "my" side sends one.
       let otherIsTypingInThread = false;
@@ -6056,28 +6073,115 @@
         $("thread-input-row").style.display = blocked ? "none" : "flex";
       }
 
+      function showTopLoadingIndicator(logId) {
+        const log = $(logId);
+        if (log.querySelector(".thread-loading-older")) return;
+        const el = document.createElement("div");
+        el.className = "thread-loading-older";
+        el.textContent = "Loading earlier messages…";
+        log.insertBefore(el, log.firstChild);
+      }
+      function hideTopLoadingIndicator(logId) {
+        const el = $(logId).querySelector(".thread-loading-older");
+        if (el) el.remove();
+      }
+
       async function loadThreadMessages(conversationId) {
         const myId = currentSession.user.id;
         const [{ data, error }, { data: hiddenRows }] = await Promise.all([
-          sb.from("messages").select("*").eq("conversation_id", conversationId).order("created_at", { ascending: true }),
+          sb
+            .from("messages")
+            .select("*")
+            .eq("conversation_id", conversationId)
+            .order("created_at", { ascending: false })
+            .limit(MESSAGES_PAGE_SIZE),
           sb.from("message_hidden_for").select("message_id").eq("user_id", myId),
         ]);
-        const hiddenIds = new Set((hiddenRows || []).map((r) => r.message_id));
+        threadHiddenIds = new Set((hiddenRows || []).map((r) => r.message_id));
         const log = $("thread-log");
         log.innerHTML = "";
         threadMessagesById = {};
         lastThreadDateKeyRef = { value: null };
+        topThreadDateKeyRef = { value: null };
         linkPreviewFetchBudget = 20;
+        threadOldestLoadedAt = null;
+        threadHasMoreOlder = true;
         if (error) {
           console.warn("Could not load messages:", error);
           return;
         }
-        for (const m of data) {
-          if (hiddenIds.has(m.id)) continue; // "deleted for me" -- still exists for everyone else
+        // The query above is newest-first (so LIMIT grabs the most recent
+        // page rather than the oldest); reverse to oldest-first for
+        // rendering, same order the log displays top-to-bottom.
+        const page = (data || []).slice().reverse();
+        threadHasMoreOlder = (data || []).length === MESSAGES_PAGE_SIZE;
+        let firstDateKey = null;
+        for (const m of page) {
+          if (threadHiddenIds.has(m.id)) continue; // "deleted for me" -- still exists for everyone else
           await renderThreadMessage(m);
+          if (firstDateKey === null) firstDateKey = new Date(m.created_at).toDateString();
         }
+        topThreadDateKeyRef.value = firstDateKey;
+        threadOldestLoadedAt = page.length ? page[0].created_at : null;
         log.scrollTop = log.scrollHeight;
         loadReactionsForThread(conversationId);
+        log.onscroll = () => {
+          if (log.scrollTop < 80) loadOlderThreadMessages();
+        };
+      }
+
+      // Fetches the next page of older messages and splices it in above
+      // what's currently showing, preserving the person's scroll position
+      // (measured before/after the insert) so the log doesn't visibly jump
+      // out from under them the way a naive prepend would.
+      async function loadOlderThreadMessages() {
+        if (!currentThreadConv || threadLoadingOlder || !threadHasMoreOlder || !threadOldestLoadedAt) return;
+        threadLoadingOlder = true;
+        const log = $("thread-log");
+        showTopLoadingIndicator("thread-log");
+        try {
+          const { data, error } = await sb
+            .from("messages")
+            .select("*")
+            .eq("conversation_id", currentThreadConv.id)
+            .lt("created_at", threadOldestLoadedAt)
+            .order("created_at", { ascending: false })
+            .limit(MESSAGES_PAGE_SIZE);
+          hideTopLoadingIndicator("thread-log");
+          if (error || !data || !data.length) {
+            threadHasMoreOlder = false;
+            return;
+          }
+          threadHasMoreOlder = data.length === MESSAGES_PAGE_SIZE;
+          const page = data.slice().reverse();
+          threadOldestLoadedAt = page[0].created_at;
+
+          const prevScrollHeight = log.scrollHeight;
+          const prevScrollTop = log.scrollTop;
+
+          const fragment = document.createDocumentFragment();
+          const batchDateKeyRef = { value: null };
+          let firstDateKey = null;
+          for (const m of page) {
+            if (threadHiddenIds.has(m.id)) continue;
+            await renderThreadMessage(m, fragment, batchDateKeyRef);
+            if (firstDateKey === null) firstDateKey = new Date(m.created_at).toDateString();
+          }
+          // If this batch's most recent day is the same day that was
+          // already showing at the top, the existing boundary divider for
+          // that day is now redundant -- this batch just rendered its own.
+          if (batchDateKeyRef.value !== null && batchDateKeyRef.value === topThreadDateKeyRef.value) {
+            const firstDivider = log.querySelector(".date-divider");
+            if (firstDivider) firstDivider.remove();
+          }
+          if (firstDateKey !== null) topThreadDateKeyRef.value = firstDateKey;
+
+          log.insertBefore(fragment, log.firstChild);
+          log.scrollTop = prevScrollTop + (log.scrollHeight - prevScrollHeight);
+          loadReactionsForThread(currentThreadConv.id);
+        } finally {
+          threadLoadingOlder = false;
+        }
       }
 
       // Signed URLs are required since the chat-media bucket is private --
@@ -6093,12 +6197,12 @@
         return data.signedUrl;
       }
 
-      async function renderThreadMessage(m) {
+      async function renderThreadMessage(m, container = $("thread-log"), dateKeyRef = lastThreadDateKeyRef) {
         const mine = m.sender_id === currentSession.user.id;
         const otherLabel = $("thread-title").textContent || "Them";
         const senderLabel = mine ? "You" : otherLabel;
 
-        maybeInsertDateDivider($("thread-log"), m, lastThreadDateKeyRef);
+        maybeInsertDateDivider(container, m, dateKeyRef);
 
         const wrap = document.createElement("div");
         wrap.className = "chat-msg " + (mine ? "me" : "them");
@@ -6109,7 +6213,7 @@
           tomb.className = "bubble tombstone";
           tomb.textContent = "This message was deleted";
           wrap.appendChild(tomb);
-          $("thread-log").appendChild(wrap);
+          container.appendChild(wrap);
           threadMessagesById[m.id] = { senderLabel, snippet: "This message was deleted" };
           return;
         }
@@ -6254,7 +6358,7 @@
         bubble.appendChild(actions);
 
         wrap.appendChild(bubble);
-        $("thread-log").appendChild(wrap);
+        container.appendChild(wrap);
 
         threadMessagesById[m.id] = { senderLabel, snippet: snippetForMessage(m) };
       }
@@ -6835,6 +6939,11 @@
       let currentGroupThread = null;
       let groupMessagesById = {};
       let lastGroupDateKeyRef = { value: null };
+      let groupOldestLoadedAt = null;
+      let groupHasMoreOlder = true;
+      let groupLoadingOlder = false;
+      let groupHiddenIds = new Set();
+      let topGroupDateKeyRef = { value: null };
       let groupThreadChannel = null;
       let groupsListChannel = null;
 
@@ -7461,25 +7570,94 @@
       async function loadGroupMessages(groupId) {
         const myId = currentSession.user.id;
         const [{ data, error }, { data: hiddenRows }] = await Promise.all([
-          sb.from("group_messages").select("*").eq("group_id", groupId).order("created_at", { ascending: true }),
+          sb
+            .from("group_messages")
+            .select("*")
+            .eq("group_id", groupId)
+            .order("created_at", { ascending: false })
+            .limit(MESSAGES_PAGE_SIZE),
           sb.from("group_message_hidden_for").select("message_id").eq("user_id", myId),
         ]);
-        const hiddenIds = new Set((hiddenRows || []).map((r) => r.message_id));
+        groupHiddenIds = new Set((hiddenRows || []).map((r) => r.message_id));
         const log = $("group-thread-log");
         log.innerHTML = "";
         groupMessagesById = {};
         lastGroupDateKeyRef = { value: null };
+        topGroupDateKeyRef = { value: null };
         linkPreviewFetchBudget = 20;
+        groupOldestLoadedAt = null;
+        groupHasMoreOlder = true;
         if (error) {
           console.warn("Could not load group messages:", error);
           return;
         }
-        const visible = (data || []).filter((m) => !hiddenIds.has(m.id)); // "deleted for me" -- still exists for everyone else
+        const page = (data || []).slice().reverse(); // newest-first query -> oldest-first for rendering
+        groupHasMoreOlder = (data || []).length === MESSAGES_PAGE_SIZE;
+        const visible = page.filter((m) => !groupHiddenIds.has(m.id)); // "deleted for me" -- still exists for everyone else
         const senderIds = [...new Set(visible.map((m) => m.sender_id))];
         const profileMap = await batchLookupProfilesById(senderIds);
-        for (const m of visible) await renderGroupMessage(m, profileMap);
+        let firstDateKey = null;
+        for (const m of visible) {
+          await renderGroupMessage(m, profileMap);
+          if (firstDateKey === null) firstDateKey = new Date(m.created_at).toDateString();
+        }
+        topGroupDateKeyRef.value = firstDateKey;
+        groupOldestLoadedAt = page.length ? page[0].created_at : null;
         log.scrollTop = log.scrollHeight;
         loadReactionsForGroupThread(groupId);
+        log.onscroll = () => {
+          if (log.scrollTop < 80) loadOlderGroupMessages();
+        };
+      }
+
+      async function loadOlderGroupMessages() {
+        if (!currentGroupThread || groupLoadingOlder || !groupHasMoreOlder || !groupOldestLoadedAt) return;
+        groupLoadingOlder = true;
+        const log = $("group-thread-log");
+        showTopLoadingIndicator("group-thread-log");
+        try {
+          const { data, error } = await sb
+            .from("group_messages")
+            .select("*")
+            .eq("group_id", currentGroupThread.id)
+            .lt("created_at", groupOldestLoadedAt)
+            .order("created_at", { ascending: false })
+            .limit(MESSAGES_PAGE_SIZE);
+          hideTopLoadingIndicator("group-thread-log");
+          if (error || !data || !data.length) {
+            groupHasMoreOlder = false;
+            return;
+          }
+          groupHasMoreOlder = data.length === MESSAGES_PAGE_SIZE;
+          const page = data.slice().reverse();
+          groupOldestLoadedAt = page[0].created_at;
+
+          const visible = page.filter((m) => !groupHiddenIds.has(m.id));
+          const senderIds = [...new Set(visible.map((m) => m.sender_id))];
+          const profileMap = await batchLookupProfilesById(senderIds);
+
+          const prevScrollHeight = log.scrollHeight;
+          const prevScrollTop = log.scrollTop;
+
+          const fragment = document.createDocumentFragment();
+          const batchDateKeyRef = { value: null };
+          let firstDateKey = null;
+          for (const m of visible) {
+            await renderGroupMessage(m, profileMap, fragment, batchDateKeyRef);
+            if (firstDateKey === null) firstDateKey = new Date(m.created_at).toDateString();
+          }
+          if (batchDateKeyRef.value !== null && batchDateKeyRef.value === topGroupDateKeyRef.value) {
+            const firstDivider = log.querySelector(".date-divider");
+            if (firstDivider) firstDivider.remove();
+          }
+          if (firstDateKey !== null) topGroupDateKeyRef.value = firstDateKey;
+
+          log.insertBefore(fragment, log.firstChild);
+          log.scrollTop = prevScrollTop + (log.scrollHeight - prevScrollHeight);
+          loadReactionsForGroupThread(currentGroupThread.id);
+        } finally {
+          groupLoadingOlder = false;
+        }
       }
 
       async function countGroupMessageReads(messageId) {
@@ -7490,11 +7668,11 @@
         return count || 0;
       }
 
-      async function renderGroupMessage(m, profileMap) {
+      async function renderGroupMessage(m, profileMap, container = $("group-thread-log"), dateKeyRef = lastGroupDateKeyRef) {
         const mine = m.sender_id === currentSession.user.id;
         let senderLabel = "You";
 
-        maybeInsertDateDivider($("group-thread-log"), m, lastGroupDateKeyRef);
+        maybeInsertDateDivider(container, m, dateKeyRef);
 
         const wrap = document.createElement("div");
         wrap.className = "chat-msg " + (mine ? "me" : "them");
@@ -7516,7 +7694,7 @@
           }
           tomb.appendChild(document.createTextNode("This message was deleted"));
           wrap.appendChild(tomb);
-          $("group-thread-log").appendChild(wrap);
+          container.appendChild(wrap);
           groupMessagesById[m.id] = { senderLabel, snippet: "This message was deleted" };
           return;
         }
@@ -7667,7 +7845,7 @@
         bubble.appendChild(actions);
 
         wrap.appendChild(bubble);
-        $("group-thread-log").appendChild(wrap);
+        container.appendChild(wrap);
 
         groupMessagesById[m.id] = { senderLabel, snippet: snippetForMessage(m) };
       }

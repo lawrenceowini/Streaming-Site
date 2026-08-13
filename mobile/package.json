@@ -1,0 +1,25 @@
+{
+  "name": "livecam-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor wrapper for the LiveCam web app (iOS/Android app store distribution)",
+  "scripts": {
+    "copy-web": "node scripts/copy-web.js",
+    "sync": "npm run copy-web && cap sync",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5"
+  }
+}

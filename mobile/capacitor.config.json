@@ -1,0 +1,19 @@
+{
+  "appId": "com.prolaw.livecam",
+  "appName": "LiveCam",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#14150f",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

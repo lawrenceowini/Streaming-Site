@@ -3791,7 +3791,12 @@
         function handleIncomingCallPush(data, opts) {
           if (!data || !data.room_code) return; // not a call push (a message/group_message notification -- those arrive live via Realtime already, nothing to do here)
           roomCodeInput.value = data.room_code;
-          showIncomingCallScreen(data.from || "", opts);
+          // FCM's data payload can't use the key "from" (reserved by the
+          // messaging protocol itself), so the backend sends it as
+          // "from_user" for this transport only -- the web path (below,
+          // via the service worker) never had this restriction and still
+          // uses "from" as-is.
+          showIncomingCallScreen(data.from_user || "", opts);
         }
         // Fires when a push arrives while the app is open and in the
         // foreground -- exactly the case that was silently doing nothing

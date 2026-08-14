@@ -717,6 +717,72 @@
       .hub-item:last-child {
         border-bottom: none;
       }
+      .call-quick-actions {
+        padding: 30px 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .call-tile-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 24px;
+        width: 100%;
+        max-width: 360px;
+      }
+      .call-tile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        background: var(--bg-panel-2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px 10px;
+        cursor: pointer;
+        color: var(--text);
+        font-size: 12.5px;
+        font-family: var(--sans);
+      }
+      .call-tile:hover {
+        border-color: var(--accent);
+        background: var(--bg-panel);
+      }
+      .call-tile-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--accent-dim);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .call-tile-icon svg {
+        width: 20px;
+        height: 20px;
+      }
+      .call-quick-actions-hint {
+        text-align: center;
+        margin-top: 24px;
+        max-width: 320px;
+      }
+      .call-result-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+      .call-result-actions .hub-icon-btn {
+        width: 30px;
+        height: 30px;
+      }
+      .call-result-actions .hub-icon-btn svg {
+        width: 14px;
+        height: 14px;
+      }
       .hub-star-btn {
         width: 28px;
         height: 28px;
@@ -1993,6 +2059,13 @@
         margin-bottom: 8px;
         flex-shrink: 0;
       }
+      .thread-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        flex-shrink: 0;
+      }
       .thread-title {
         font-size: 13.5px;
         color: var(--text);
@@ -2703,27 +2776,20 @@
     <!-- Account bar: shown when signed in -->
     <div class="calls-hub" id="calls-hub" style="display: none">
       <div class="hub-tabs">
-        <button class="hub-tab active" data-tab="call" title="Call">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
-            ></path>
-          </svg>
-        </button>
-        <button class="hub-tab" data-tab="schedule" title="Schedule">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V9h14z"
-            ></path>
-          </svg>
-        </button>
-        <button class="hub-tab" data-tab="chats" title="Chats">
+        <button class="hub-tab active" data-tab="chats" title="Chats">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"
             ></path>
           </svg>
           <span class="unread-badge" id="chats-unread-badge">0</span>
+        </button>
+        <button class="hub-tab" data-tab="call" title="Call">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+            ></path>
+          </svg>
         </button>
         <button class="hub-tab" data-tab="groups" title="Groups">
           <svg viewBox="0 0 24 24" fill="currentColor">
@@ -2742,32 +2808,9 @@
         </button>
       </div>
 
-      <div class="hub-panel" id="hub-panel-call">
+      <div class="hub-panel" id="hub-panel-call" style="display: none">
         <div id="call-detail-column">
-          <div class="setup" id="setup-panel">
-            <div class="field">
-              <label for="invite-emails">Call this email (optional)</label>
-              <input
-                type="text"
-                id="invite-emails"
-                placeholder="alex@example.com, sam@example.com"
-                autocomplete="off"
-              />
-              <p class="hint">
-                They'll get a call notification if they have alerts enabled.
-                Leave blank for a link-only call.
-              </p>
-            </div>
-            <!-- Room code is generated automatically and shown once you're
-                 actually in the call (status bar, top of the stage) so you
-                 can share it then -- nothing to fill in here beforehand. -->
-            <div class="field" style="display: none">
-              <input type="text" id="room-code" />
-              <button class="ghost-btn" id="gen-code">Generate</button>
-            </div>
-          </div>
-
-          <div class="join-card" id="join-card">
+          <div class="call-quick-actions">
             <label class="audio-only-toggle">
               <input type="checkbox" id="audio-only-checkbox" />
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -2775,18 +2818,80 @@
                   d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"
                 ></path>
               </svg>
-              <span>Join audio only (no camera)</span>
+              <span>Audio only (no camera)</span>
             </label>
+            <div class="call-tile-grid">
+              <button class="call-tile" id="call-tile-start">
+                <span class="call-tile-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11z"
+                    ></path>
+                  </svg>
+                </span>
+                <span>Start call</span>
+              </button>
+              <button class="call-tile" id="call-tile-link">
+                <span class="call-tile-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"
+                    ></path>
+                  </svg>
+                </span>
+                <span>New call link</span>
+              </button>
+              <button class="call-tile" id="call-tile-search">
+                <span class="call-tile-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14"
+                    ></path>
+                  </svg>
+                </span>
+                <span>Call by email</span>
+              </button>
+              <button class="call-tile" id="call-tile-schedule">
+                <span class="call-tile-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V9h14z"
+                    ></path>
+                  </svg>
+                </span>
+                <span>Schedule call</span>
+              </button>
+            </div>
+            <p class="hint call-quick-actions-hint">
+              Calls are peer-to-peer, routed only through your own signaling
+              server.
+            </p>
+          </div>
+
+          <!-- Kept for the logic that already reads/writes them
+               (requireSetup, startCall, quickCall) -- not shown directly
+               anymore now that the tiles + search above cover the same
+               ground, but removing them outright would mean rewriting that
+               logic instead of just reusing it. -->
+          <div class="setup" id="setup-panel" style="display: none">
+            <div class="field">
+              <input
+                type="text"
+                id="invite-emails"
+                placeholder="alex@example.com, sam@example.com"
+              />
+            </div>
+            <div class="field">
+              <input type="text" id="room-code" />
+              <button class="ghost-btn" id="gen-code">Generate</button>
+            </div>
+          </div>
+          <div class="join-card" id="join-card" style="display: none">
             <button class="btn btn-primary btn-join" id="join-btn">
               Start call
             </button>
             <div class="invite-actions">
               <button class="ghost-btn" id="copy-link">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"
-                  ></path>
-                </svg>
                 <span>Get call link</span>
               </button>
             </div>
@@ -2794,46 +2899,79 @@
         </div>
 
         <div id="call-list-column">
-          <div class="pill-row">
-            <button class="pill-btn active" data-call-filter="recents">
-              Recents
-            </button>
-            <button class="pill-btn" data-call-filter="favorites">
-              Favorites
-            </button>
-            <button class="pill-btn" data-call-filter="all">All</button>
+          <div class="list-search-row">
+            <svg class="list-search-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14"
+              ></path>
+            </svg>
+            <input
+              type="text"
+              id="call-search-input"
+              placeholder="Search name or email"
+              autocomplete="off"
+            />
           </div>
 
-          <div id="call-filter-recents">
-            <div id="recents-list"></div>
-            <p class="hub-empty" id="recents-empty">
-              No recent calls yet — calls you make or join will show up here.
+          <div id="call-search-results" style="display: none">
+            <div id="call-search-results-list"></div>
+            <p class="hub-empty" id="call-search-results-empty" style="display: none">
+              No matches.
             </p>
           </div>
 
-          <div id="call-filter-favorites" style="display: none">
-            <div class="favorite-add-row">
-              <input type="text" id="fav-label" placeholder="Name" />
-              <input type="text" id="fav-email" placeholder="Their email" />
-              <button class="ghost-btn" id="fav-add-btn">+ Add</button>
+          <div id="call-browse-view">
+            <div class="pill-row">
+              <button class="pill-btn active" data-call-filter="recents">
+                Recents
+              </button>
+              <button class="pill-btn" data-call-filter="favorites">
+                Favorites
+              </button>
+              <button class="pill-btn" data-call-filter="all">All</button>
             </div>
-            <div id="favorites-list"></div>
-            <p class="hub-empty" id="favorites-empty">
-              No favorites yet — add someone you call often for one-tap dialing.
+
+            <div id="call-filter-recents">
+              <div id="recents-list"></div>
+              <p class="hub-empty" id="recents-empty">
+                No recent calls yet — calls you make or join will show up here.
+              </p>
+            </div>
+
+            <div id="call-filter-favorites" style="display: none">
+              <div class="favorite-add-row">
+                <input type="text" id="fav-label" placeholder="Name" />
+                <input type="text" id="fav-email" placeholder="Their email" />
+                <button class="ghost-btn" id="fav-add-btn">+ Add</button>
+              </div>
+              <div id="favorites-list"></div>
+              <p class="hub-empty" id="favorites-empty">
+                No favorites yet — add someone you call often for one-tap dialing.
+              </p>
+            </div>
+
+            <div id="call-filter-all" style="display: none">
+              <div id="call-all-list"></div>
+              <p class="hub-empty" id="call-all-empty">
+                Nothing to show yet — your favorites and recent calls will
+                appear here together.
             </p>
           </div>
-
-          <div id="call-filter-all" style="display: none">
-            <div id="call-all-list"></div>
-            <p class="hub-empty" id="call-all-empty">
-              Nothing to show yet — your favorites and recent calls will
-              appear here together.
-            </p>
           </div>
         </div>
       </div>
 
       <div class="hub-panel" id="hub-panel-schedule" style="display: none">
+        <div class="thread-header">
+          <button class="hub-icon-btn" id="schedule-back-btn" title="Back to Call">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"
+              ></path>
+            </svg>
+          </button>
+          <div class="thread-title">Schedule a call</div>
+        </div>
         <div class="schedule-form">
           <input
             type="text"
@@ -2860,7 +2998,7 @@
         </p>
       </div>
 
-      <div class="hub-panel" id="hub-panel-chats" style="display: none">
+      <div class="hub-panel" id="hub-panel-chats">
         <!-- Conversation list -->
         <div id="chats-list-view">
           <div class="favorite-add-row">
@@ -2918,6 +3056,22 @@
             <div class="thread-title-col">
               <div class="thread-title" id="thread-title">Conversation</div>
               <div class="thread-subtitle" id="thread-subtitle"></div>
+            </div>
+            <div class="thread-header-actions">
+              <button class="hub-icon-btn" id="thread-video-call-btn" title="Video call">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11z"
+                  ></path>
+                </svg>
+              </button>
+              <button class="hub-icon-btn" id="thread-voice-call-btn" title="Voice call">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                  ></path>
+                </svg>
+              </button>
             </div>
           </div>
           <div class="thread-log" id="thread-log"></div>
@@ -3152,6 +3306,22 @@
                 Group
               </div>
               <div class="thread-subtitle" id="group-thread-subtitle"></div>
+            </div>
+            <div class="thread-header-actions">
+              <button class="hub-icon-btn" id="group-video-call-btn" title="Video call">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11z"
+                  ></path>
+                </svg>
+              </button>
+              <button class="hub-icon-btn" id="group-voice-call-btn" title="Voice call">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                  ></path>
+                </svg>
+              </button>
             </div>
           </div>
           <div class="thread-log" id="group-thread-log"></div>
@@ -3611,11 +3781,29 @@
         PushNotifications.addListener("registrationError", (err) => {
           console.warn("Native push registration error:", err);
         });
-        // For now this just brings the app to the foreground (the native
-        // default); routing straight to the relevant call/chat can be added
-        // once the backend sends enough in the payload to know where to go.
+
+        // Mirrors what the service worker does for web push (see sw.js and
+        // the "incoming-call-live" message listener above): calls have no
+        // realtime fallback the way regular messages do (a random room code
+        // has no pre-existing subscription for the callee to be listening
+        // on), so push is the *only* way a callee learns about an incoming
+        // call at all -- this is that path for native.
+        function handleIncomingCallPush(data, opts) {
+          if (!data || !data.room_code) return; // not a call push (a message/group_message notification -- those arrive live via Realtime already, nothing to do here)
+          roomCodeInput.value = data.room_code;
+          showIncomingCallScreen(data.from || "", opts);
+        }
+        // Fires when a push arrives while the app is open and in the
+        // foreground -- exactly the case that was silently doing nothing
+        // before this fix.
+        PushNotifications.addListener("pushNotificationReceived", (notification) => {
+          handleIncomingCallPush(notification.data, { fullscreen: false });
+        });
+        // Fires when the person taps the OS notification itself (app was
+        // backgrounded or fully closed) -- full-screen takeover, same as
+        // the equivalent web path for a page-load-time incoming call.
         PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
-          console.log("Push notification tapped:", action.notification);
+          handleIncomingCallPush(action.notification && action.notification.data, { fullscreen: true });
         });
       }
 
@@ -4373,7 +4561,93 @@
         );
       };
 
-      /* ================= Calls hub: tabs, Recents, Favorites, Schedule ================= */
+      // ---- "New call link" tile: reuses the exact same copy logic the old
+      // visible button used, just targeting the tile itself so there's
+      // still a visible "Copied!" flash even though the original button is
+      // now hidden. ----
+      $("call-tile-link").onclick = async () => {
+        const cfg = requireSetup();
+        if (!cfg) return;
+        await copyToClipboard(
+          buildInviteLink(cfg.url, cfg.room),
+          $("call-tile-link"),
+          $("call-tile-link").innerHTML,
+          `${ICONS.check}<span>Copied!</span>`,
+        );
+      };
+      // "Start call" and "Schedule call" have visible feedback of their own
+      // (the call UI opening / the Schedule tab appearing), so proxying to
+      // the existing hidden button / tab switch is enough -- no separate
+      // confirmation needed.
+      $("call-tile-start").onclick = () => $("join-btn").click();
+      $("call-tile-schedule").onclick = () => switchHubTab("schedule");
+      $("schedule-back-btn").onclick = () => switchHubTab("call");
+      $("call-tile-search").onclick = () => $("call-search-input").focus();
+
+      // ---- Call tab search: find someone by username or email, call them
+      // directly from the result row. ----
+      let callSearchDebounce = null;
+      $("call-search-input").addEventListener("input", () => {
+        clearTimeout(callSearchDebounce);
+        const term = $("call-search-input").value.trim();
+        if (term.length < 2) {
+          $("call-search-results").style.display = "none";
+          $("call-browse-view").style.display = "";
+          return;
+        }
+        callSearchDebounce = setTimeout(() => runCallSearch(term), 250);
+      });
+
+      async function runCallSearch(term) {
+        // Guards against a slower-to-resolve earlier search overwriting a
+        // newer one's results if they land out of order.
+        const searchToken = (runCallSearch.token = (runCallSearch.token || 0) + 1);
+        const myId = currentSession.user.id;
+        const { data } = await sb
+          .from("profiles")
+          .select("id,username,email,avatar_url")
+          .or(`username.ilike.%${term}%,email.ilike.%${term}%`)
+          .neq("id", myId)
+          .limit(20);
+        if (searchToken !== runCallSearch.token) return;
+        if ($("call-search-input").value.trim() !== term) return; // input changed again while this was in flight
+
+        $("call-browse-view").style.display = "none";
+        $("call-search-results").style.display = "block";
+        const list = $("call-search-results-list");
+        const results = data || [];
+        list.innerHTML = "";
+        $("call-search-results-empty").style.display = results.length ? "none" : "block";
+        for (const person of results) {
+          const display = person.username || person.email;
+          const item = document.createElement("div");
+          item.className = "hub-item";
+          item.innerHTML = `
+            <div class="hub-item-avatar">${person.avatar_url ? `<img src="${escapeHtml(person.avatar_url)}" alt="">` : escapeHtml(initialsFor(display))}</div>
+            <div class="hub-item-body">
+              <div class="hub-item-title">${escapeHtml(display)}</div>
+              <div class="hub-item-sub">${escapeHtml(person.email)}</div>
+            </div>
+            <div class="call-result-actions">
+              <button class="hub-icon-btn call-result-video" title="Video call">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11z"></path></svg>
+              </button>
+              <button class="hub-icon-btn call-result-voice" title="Voice call">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"></path></svg>
+              </button>
+            </div>
+          `;
+          item.querySelector(".call-result-video").addEventListener("click", () => {
+            $("audio-only-checkbox").checked = false;
+            quickCall(randomRoomCode(), person.email);
+          });
+          item.querySelector(".call-result-voice").addEventListener("click", () => {
+            $("audio-only-checkbox").checked = true;
+            quickCall(randomRoomCode(), person.email);
+          });
+          list.appendChild(item);
+        }
+      }
 
       // Above this width the chats/groups panels show as a 3-pane layout
       // (list always visible + a detail pane alongside it). Below it, the
@@ -4415,7 +4689,7 @@
           .forEach((btn) =>
             btn.classList.toggle("active", btn.dataset.tab === tab),
           );
-        ["call", "schedule", "chats", "groups", "profile"].forEach((t) => {
+        ["chats", "call", "groups", "schedule", "profile"].forEach((t) => {
           const isActive = t === tab;
           // #hub-panel-chats, #hub-panel-groups, and #hub-panel-call are all
           // flex rows on desktop (columns on mobile) -- "block" would
@@ -6139,6 +6413,32 @@
 
       let currentThreadOtherProfile = null; // { username, email, avatar_url } for whoever's on the other side of the open 1:1 thread
 
+      // Falls back to the conversation's own email snapshot if the live
+      // profile fetch (in openConversationThread) hasn't resolved yet --
+      // same fallback pattern used for the display name.
+      function getOpenThreadOtherEmail() {
+        if (currentThreadOtherProfile && currentThreadOtherProfile.email) return currentThreadOtherProfile.email;
+        const conv = currentThreadConv;
+        if (!conv || !currentSession) return null;
+        const myId = currentSession.user.id;
+        return conv.user_a_id === myId ? conv.user_b_email : conv.user_a_email;
+      }
+
+      // Reuses the exact same one-tap-dial path Recents/Favorites use
+      // (quickCall) -- generates a fresh room code, pre-fills the invite
+      // field, switches to the Call tab, and starts the call immediately.
+      function callFromChat(audioOnly) {
+        const email = getOpenThreadOtherEmail();
+        if (!email) {
+          alert("Could not find this person's email to call them.");
+          return;
+        }
+        $("audio-only-checkbox").checked = audioOnly;
+        quickCall(randomRoomCode(), email);
+      }
+      $("thread-video-call-btn").onclick = () => callFromChat(false);
+      $("thread-voice-call-btn").onclick = () => callFromChat(true);
+
       async function openConversationThread(conv) {
         currentThreadConv = conv;
         currentThreadOtherProfile = null;
@@ -7078,6 +7378,25 @@
       let topGroupDateKeyRef = { value: null };
       let groupThreadChannel = null;
       let groupsListChannel = null;
+
+      // Room calls support up to 6 people, so a group call invites every
+      // other member's email at once -- fetched fresh each time rather than
+      // cached, since group membership can change between calls.
+      async function getGroupMemberEmails(groupId, excludeUserId) {
+        const { data: members } = await sb.from("group_members").select("user_id").eq("group_id", groupId);
+        const ids = (members || []).map((m) => m.user_id).filter((id) => id !== excludeUserId);
+        if (!ids.length) return "";
+        const { data: profiles } = await sb.from("profiles").select("id,email").in("id", ids);
+        return (profiles || []).map((p) => p.email).filter(Boolean).join(",");
+      }
+      async function callFromGroup(audioOnly) {
+        if (!currentGroupThread || !currentSession) return;
+        const emails = await getGroupMemberEmails(currentGroupThread.id, currentSession.user.id);
+        $("audio-only-checkbox").checked = audioOnly;
+        quickCall(randomRoomCode(), emails);
+      }
+      $("group-video-call-btn").onclick = () => callFromGroup(false);
+      $("group-voice-call-btn").onclick = () => callFromGroup(true);
 
       // Typing indicator state for the open group thread -- unlike 1:1,
       // several people can be typing at once, so this is a map rather than

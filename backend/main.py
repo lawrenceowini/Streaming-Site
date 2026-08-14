@@ -430,13 +430,20 @@ def _send_one_native_push(device_token: str, payload: dict) -> Optional[str]:
     of whether the OS delivered it as a system notification or a background
     data message."""
     try:
+        # FCM rejects a handful of reserved key names in the data payload --
+        # "from" is one of them (used internally by the messaging protocol
+        # itself), so it has to be renamed just for this transport. Web push
+        # keeps using "from" as-is; only this FCM-bound copy changes.
+        fcm_data = {k: str(v) for k, v in payload.items()}
+        if "from" in fcm_data:
+            fcm_data["from_user"] = fcm_data.pop("from")
         message = fb_messaging.Message(
             token=device_token,
             notification=fb_messaging.Notification(
                 title=payload.get("title", ""),
                 body=payload.get("body", ""),
             ),
-            data={k: str(v) for k, v in payload.items()},
+            data=fcm_data,
         )
         fb_messaging.send(message)
     except fb_exceptions.NotFoundError:

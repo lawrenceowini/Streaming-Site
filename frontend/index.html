@@ -602,36 +602,50 @@
         width: 100%;
         max-width: 500px;
         margin-bottom: 18px;
-        display: flex;
-        flex-direction: row;
-        align-items: stretch;
+        display: block;
       }
       .hub-tabs {
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 56px;
-        flex-shrink: 0;
+        flex-direction: row;
+        align-items: stretch;
+        justify-content: space-around;
+        width: 100%;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 40;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: var(--radius) 0 0 var(--radius);
-        border-right: none;
-        padding: 10px 0;
-        gap: 6px;
+        border-radius: 0;
+        padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+        gap: 2px;
       }
       .hub-tab {
-        flex: 0 0 auto;
-        width: 42px;
-        height: 42px;
+        flex: 1 1 0;
+        width: auto;
+        height: 52px;
         background: transparent;
         border: none;
         color: var(--text-dim);
         cursor: pointer;
         border-radius: 10px;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: 3px;
         position: relative;
+      }
+      .hub-tab-label {
+        font-size: 10px;
+        font-family: var(--sans);
+        line-height: 1;
+      }
+      .hub-tab-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       .hub-tab svg {
         width: 20px;
@@ -657,14 +671,15 @@
         min-width: 0;
         background: var(--bg-panel);
         border: 1px solid var(--line);
-        border-radius: 0 var(--radius) var(--radius) 0;
-        padding: 18px 20px 20px;
+        border-radius: var(--radius);
+        padding: 18px 20px calc(20px + 64px + env(safe-area-inset-bottom, 0px));
       }
       #hub-panel-call {
         padding: 0;
         background: none;
         border: none;
         border-radius: 0;
+        padding-bottom: calc(20px + 64px + env(safe-area-inset-bottom, 0px));
       }
       .pill-row {
         display: flex;
@@ -1912,22 +1927,24 @@
         max-width: 260px;
       }
 
-      /* Small phones (iPhone SE, older Android): shrink icon buttons and
-         gaps so the control bar can never need horizontal scrolling. */
+      /* Small phones (iPhone SE, older Android): shrink the bottom tab bar
+         and its labels so five tabs can never crowd or wrap. */
       @media (max-width: 380px) {
-        .hub-tabs {
-          width: 48px;
-        }
         .hub-tab {
-          width: 36px;
-          height: 36px;
+          height: 46px;
         }
         .hub-tab svg {
-          width: 17px;
-          height: 17px;
+          width: 18px;
+          height: 18px;
+        }
+        .hub-tab-label {
+          font-size: 9px;
         }
         .hub-panel {
-          padding: 14px 14px 16px;
+          padding: 14px 14px calc(16px + 58px + env(safe-area-inset-bottom, 0px));
+        }
+        #hub-panel-call {
+          padding-bottom: calc(16px + 58px + env(safe-area-inset-bottom, 0px));
         }
         .controls-bar {
           gap: 14px;
@@ -2576,11 +2593,41 @@
           min-height: 0;
           max-height: 860px;
           margin-bottom: 24px;
+          display: flex;
+          flex-direction: row;
+          align-items: stretch;
+        }
+        /* The bottom tab bar is a mobile-only pattern -- back to the
+           original vertical rail here, docked to the left of the panel
+           instead of fixed to the viewport bottom. */
+        .hub-tabs {
+          position: static;
+          flex-direction: column;
+          justify-content: flex-start;
+          width: 56px;
+          flex-shrink: 0;
+          border-radius: var(--radius) 0 0 var(--radius);
+          border-right: none;
+          padding: 10px 0;
+          gap: 6px;
+        }
+        .hub-tab {
+          flex: 0 0 auto;
+          width: 42px;
+          height: 42px;
+        }
+        .hub-tab-label {
+          display: none;
         }
         .hub-panel {
+          border-radius: 0 var(--radius) var(--radius) 0;
+          padding: 18px 20px 20px;
           height: 100%;
           overflow: hidden;
           box-sizing: border-box;
+        }
+        #hub-panel-call {
+          padding-bottom: 0;
         }
         #hub-panel-chats,
         #hub-panel-groups {
@@ -2782,6 +2829,7 @@
               d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"
             ></path>
           </svg>
+          <span class="hub-tab-label">Chats</span>
           <span class="unread-badge" id="chats-unread-badge">0</span>
         </button>
         <button class="hub-tab" data-tab="call" title="Call">
@@ -2790,6 +2838,7 @@
               d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
             ></path>
           </svg>
+          <span class="hub-tab-label">Calls</span>
         </button>
         <button class="hub-tab" data-tab="groups" title="Groups">
           <svg viewBox="0 0 24 24" fill="currentColor">
@@ -2797,14 +2846,18 @@
               d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
             ></path>
           </svg>
+          <span class="hub-tab-label">Groups</span>
           <span class="unread-badge" id="groups-unread-badge">0</span>
         </button>
         <button class="hub-tab" data-tab="profile" title="Profile" id="profile-tab-btn">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.76-3.58-5-8-5z"
-            ></path>
-          </svg>
+          <span class="hub-tab-icon" id="profile-tab-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.76-3.58-5-8-5z"
+              ></path>
+            </svg>
+          </span>
+          <span class="hub-tab-label">Profile</span>
         </button>
       </div>
 
@@ -3750,12 +3803,18 @@
         if (!isNativeApp || !currentSession) return;
         const base = restBaseUrl();
         if (!base) return; // no signaling server configured yet -- nothing to register against
-        const { PushNotifications } = window.Capacitor.Plugins;
+        const { PushNotifications, LocalNotifications } = window.Capacitor.Plugins;
         try {
           let perm = await PushNotifications.checkPermissions();
           if (perm.receive !== "granted") perm = await PushNotifications.requestPermissions();
           if (perm.receive !== "granted") return;
           await PushNotifications.register();
+          // Separate permission from the above on iOS -- needed for
+          // fireForegroundCallAlert (below) to actually produce sound.
+          if (LocalNotifications) {
+            const localPerm = await LocalNotifications.checkPermissions();
+            if (localPerm.display !== "granted") await LocalNotifications.requestPermissions();
+          }
         } catch (e) {
           console.warn("Native push setup failed:", e);
           return;
@@ -3799,17 +3858,59 @@
           showIncomingCallScreen(data.from_user || "", opts);
         }
         // Fires when a push arrives while the app is open and in the
-        // foreground -- exactly the case that was silently doing nothing
-        // before this fix.
+        // foreground. The OS stays silent in this case by design (it
+        // assumes the app will handle it) -- fireForegroundCallAlert below
+        // is what actually produces the phone's real notification sound
+        // here, since nothing does that automatically.
         PushNotifications.addListener("pushNotificationReceived", (notification) => {
-          handleIncomingCallPush(notification.data, { fullscreen: false });
+          handleIncomingCallPush(notification.data, { fullscreen: true });
+          if (notification.data && notification.data.room_code) fireForegroundCallAlert(notification.data);
         });
         // Fires when the person taps the OS notification itself (app was
-        // backgrounded or fully closed) -- full-screen takeover, same as
-        // the equivalent web path for a page-load-time incoming call.
+        // backgrounded or fully closed) -- the OS already played the
+        // notification sound and showed its own banner before this fires,
+        // so no extra alert is needed here, just the call screen itself.
         PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
           handleIncomingCallPush(action.notification && action.notification.data, { fullscreen: true });
         });
+      }
+
+      // The system only auto-plays a notification sound for a push that
+      // arrives while the app is backgrounded/closed -- while it's open,
+      // Android/iOS both go silent and leave it entirely up to the app.
+      // Since this is now a real app rather than a browser tab, a proper
+      // native notification (with the phone's actual sound + vibration,
+      // not just the in-page synthesized ringtone) is worth firing here to
+      // match, on top of the fullscreen call screen itself.
+      let callChannelReady = false;
+      async function fireForegroundCallAlert(data) {
+        const { LocalNotifications } = window.Capacitor.Plugins;
+        if (!LocalNotifications) return;
+        try {
+          if (!callChannelReady) {
+            await LocalNotifications.createChannel({
+              id: "incoming-calls",
+              name: "Incoming calls",
+              importance: 5, // max -- heads-up + sound even over other apps
+              sound: "default",
+              vibration: true,
+            });
+            callChannelReady = true;
+          }
+          await LocalNotifications.schedule({
+            notifications: [
+              {
+                id: Date.now() % 2147483647,
+                title: data.title || "Incoming call",
+                body: data.body || (data.from_user ? `${data.from_user} is calling` : "Tap to join"),
+                channelId: "incoming-calls",
+                sound: "default",
+              },
+            ],
+          });
+        } catch (e) {
+          console.warn("Foreground call alert failed:", e);
+        }
       }
 
       const ICE_SERVERS = [
@@ -4424,7 +4525,10 @@
         }
       })();
 
+      let incomingCallFromEmail = null; // who's calling, for both display and (on accept) logging to Recents correctly
+
       function showIncomingCallScreen(fromEmail, opts = {}) {
+        incomingCallFromEmail = fromEmail || null;
         const fullscreen = opts.fullscreen !== false; // default true -- the page-load/notification path
         if (fullscreen) {
           $("incoming-fs-avatar").innerHTML = fromEmail
@@ -4467,12 +4571,18 @@
           return;
         }
         switchHubTab("call");
+        // Without this, Recents had nothing to show but the room code --
+        // requireSetup() reads whatever's currently in invite-emails, which
+        // is never populated on the accept path otherwise (that field is
+        // only filled in when *you're* the one starting a call).
+        if (incomingCallFromEmail) $("invite-emails").value = incomingCallFromEmail;
         const cfg = requireSetup();
         if (!cfg) return;
         await startCall(cfg, $("audio-only-checkbox").checked);
       }
       function declineIncomingCall() {
         dismissIncomingCallScreen();
+        incomingCallFromEmail = null;
         roomCodeInput.value = randomRoomCode();
       }
       $("accept-call-btn").onclick = acceptIncomingCall;
@@ -5179,10 +5289,10 @@
         // panel's big circle and the sidebar tab's small icon.
         if (myProfile.avatar_url) {
           $("account-avatar").innerHTML = `<img src="${escapeHtml(myProfile.avatar_url)}" alt="">`;
-          $("profile-tab-btn").innerHTML = `<img src="${escapeHtml(myProfile.avatar_url)}" alt="">`;
+          $("profile-tab-icon").innerHTML = `<img src="${escapeHtml(myProfile.avatar_url)}" alt="">`;
         } else {
           $("account-avatar").textContent = initialsFor(display);
-          $("profile-tab-btn").innerHTML = ICONS.person;
+          $("profile-tab-icon").innerHTML = ICONS.person;
         }
       }
 

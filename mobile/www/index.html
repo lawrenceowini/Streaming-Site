@@ -3750,12 +3750,18 @@
         if (!isNativeApp || !currentSession) return;
         const base = restBaseUrl();
         if (!base) return; // no signaling server configured yet -- nothing to register against
-        const { PushNotifications } = window.Capacitor.Plugins;
+        const { PushNotifications, LocalNotifications } = window.Capacitor.Plugins;
         try {
           let perm = await PushNotifications.checkPermissions();
           if (perm.receive !== "granted") perm = await PushNotifications.requestPermissions();
           if (perm.receive !== "granted") return;
           await PushNotifications.register();
+          // Separate permission from the above on iOS -- needed for
+          // fireForegroundCallAlert (below) to actually produce sound.
+          if (LocalNotifications) {
+            const localPerm = await LocalNotifications.checkPermissions();
+            if (localPerm.display !== "granted") await LocalNotifications.requestPermissions();
+          }
         } catch (e) {
           console.warn("Native push setup failed:", e);
           return;
@@ -3791,20 +3797,67 @@
         function handleIncomingCallPush(data, opts) {
           if (!data || !data.room_code) return; // not a call push (a message/group_message notification -- those arrive live via Realtime already, nothing to do here)
           roomCodeInput.value = data.room_code;
-          showIncomingCallScreen(data.from || "", opts);
+          // FCM's data payload can't use the key "from" (reserved by the
+          // messaging protocol itself), so the backend sends it as
+          // "from_user" for this transport only -- the web path (below,
+          // via the service worker) never had this restriction and still
+          // uses "from" as-is.
+          showIncomingCallScreen(data.from_user || "", opts);
         }
         // Fires when a push arrives while the app is open and in the
-        // foreground -- exactly the case that was silently doing nothing
-        // before this fix.
+        // foreground. The OS stays silent in this case by design (it
+        // assumes the app will handle it) -- fireForegroundCallAlert below
+        // is what actually produces the phone's real notification sound
+        // here, since nothing does that automatically.
         PushNotifications.addListener("pushNotificationReceived", (notification) => {
-          handleIncomingCallPush(notification.data, { fullscreen: false });
+          handleIncomingCallPush(notification.data, { fullscreen: true });
+          if (notification.data && notification.data.room_code) fireForegroundCallAlert(notification.data);
         });
         // Fires when the person taps the OS notification itself (app was
-        // backgrounded or fully closed) -- full-screen takeover, same as
-        // the equivalent web path for a page-load-time incoming call.
+        // backgrounded or fully closed) -- the OS already played the
+        // notification sound and showed its own banner before this fires,
+        // so no extra alert is needed here, just the call screen itself.
         PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
           handleIncomingCallPush(action.notification && action.notification.data, { fullscreen: true });
         });
+      }
+
+      // The system only auto-plays a notification sound for a push that
+      // arrives while the app is backgrounded/closed -- while it's open,
+      // Android/iOS both go silent and leave it entirely up to the app.
+      // Since this is now a real app rather than a browser tab, a proper
+      // native notification (with the phone's actual sound + vibration,
+      // not just the in-page synthesized ringtone) is worth firing here to
+      // match, on top of the fullscreen call screen itself.
+      let callChannelReady = false;
+      async function fireForegroundCallAlert(data) {
+        const { LocalNotifications } = window.Capacitor.Plugins;
+        if (!LocalNotifications) return;
+        try {
+          if (!callChannelReady) {
+            await LocalNotifications.createChannel({
+              id: "incoming-calls",
+              name: "Incoming calls",
+              importance: 5, // max -- heads-up + sound even over other apps
+              sound: "default",
+              vibration: true,
+            });
+            callChannelReady = true;
+          }
+          await LocalNotifications.schedule({
+            notifications: [
+              {
+                id: Date.now() % 2147483647,
+                title: data.title || "Incoming call",
+                body: data.body || (data.from_user ? `${data.from_user} is calling` : "Tap to join"),
+                channelId: "incoming-calls",
+                sound: "default",
+              },
+            ],
+          });
+        } catch (e) {
+          console.warn("Foreground call alert failed:", e);
+        }
       }
 
       const ICE_SERVERS = [
@@ -4419,7 +4472,10 @@
         }
       })();
 
+      let incomingCallFromEmail = null; // who's calling, for both display and (on accept) logging to Recents correctly
+
       function showIncomingCallScreen(fromEmail, opts = {}) {
+        incomingCallFromEmail = fromEmail || null;
         const fullscreen = opts.fullscreen !== false; // default true -- the page-load/notification path
         if (fullscreen) {
           $("incoming-fs-avatar").innerHTML = fromEmail
@@ -4462,12 +4518,18 @@
           return;
         }
         switchHubTab("call");
+        // Without this, Recents had nothing to show but the room code --
+        // requireSetup() reads whatever's currently in invite-emails, which
+        // is never populated on the accept path otherwise (that field is
+        // only filled in when *you're* the one starting a call).
+        if (incomingCallFromEmail) $("invite-emails").value = incomingCallFromEmail;
         const cfg = requireSetup();
         if (!cfg) return;
         await startCall(cfg, $("audio-only-checkbox").checked);
       }
       function declineIncomingCall() {
         dismissIncomingCallScreen();
+        incomingCallFromEmail = null;
         roomCodeInput.value = randomRoomCode();
       }
       $("accept-call-btn").onclick = acceptIncomingCall;

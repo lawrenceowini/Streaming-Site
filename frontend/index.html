@@ -596,6 +596,42 @@
         width: 13px;
         height: 13px;
       }
+      .group-admin-badge {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--accent);
+        background: var(--accent-dim);
+        border-radius: 6px;
+        padding: 1px 6px;
+        margin-left: 4px;
+        vertical-align: middle;
+        font-family: var(--sans);
+      }
+      .group-member-role-btn {
+        flex-shrink: 0;
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--text-dim);
+        font-size: 11px;
+        font-family: var(--sans);
+        padding: 5px 9px;
+        border-radius: 7px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .group-member-role-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .group-member-role-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .group-member-role-btn:disabled:hover {
+        border-color: var(--line);
+        color: var(--text-dim);
+      }
 
       /* ---------------- Calls hub: tab bar + panels ---------------- */
       .calls-hub {
@@ -7843,7 +7879,11 @@
             if (profile) memberIds.add(profile.id);
             else notFound.push(uname);
           }
-          const rows = [...memberIds].map((id) => ({ group_id: group.id, user_id: id }));
+          const rows = [...memberIds].map((id) => ({
+            group_id: group.id,
+            user_id: id,
+            role: id === myId ? "admin" : "member",
+          }));
           const { error: memberError } = await sb.from("group_members").insert(rows);
           if (memberError) {
             alert("Group created, but could not add members: " + memberError.message);
@@ -7948,22 +7988,37 @@
       });
 
       /* ================= Group info panel ================= */
+      let currentGroupMyRole = "member"; // refreshed each time group info opens; drives every admin-only control below
+
       async function openGroupInfo() {
         if (!currentGroupThread) return;
         const group = currentGroupThread;
         const myId = currentSession.user.id;
 
+        const { data: myMembership } = await sb
+          .from("group_members")
+          .select("role")
+          .eq("group_id", group.id)
+          .eq("user_id", myId)
+          .maybeSingle();
+        currentGroupMyRole = (myMembership && myMembership.role) || "member";
+        const isAdmin = currentGroupMyRole === "admin";
+
         $("group-info-name").textContent = group.name;
         $("group-info-description").value = group.description || "";
+        $("group-info-description").disabled = !isAdmin;
+        $("group-info-description").title = isAdmin ? "" : "Only group admins can change this";
         if (group.avatar_url) {
           $("group-info-avatar").innerHTML = `<img src="${escapeHtml(group.avatar_url)}" alt="">`;
         } else {
           $("group-info-avatar").textContent = initialsFor(group.name);
         }
+        $("group-info-avatar-edit-btn").style.display = isAdmin ? "flex" : "none";
 
-        // Only the creator can clear the group's history -- more
-        // consequential than a 1:1 clear since it affects every member.
-        $("group-clear-btn").style.display = group.created_by === myId ? "flex" : "none";
+        // Clearing the group's history and changing its settings are both
+        // admin-only -- previously this checked "are you literally the
+        // creator", which excluded anyone promoted to admin afterward.
+        $("group-clear-btn").style.display = isAdmin ? "flex" : "none";
 
         setGroupsPane("info");
 
@@ -8014,42 +8069,80 @@
       };
 
       $("group-info-description").addEventListener("blur", async () => {
-        if (!currentGroupThread) return;
+        if (!currentGroupThread || currentGroupMyRole !== "admin") return;
         const description = $("group-info-description").value.trim();
         currentGroupThread.description = description;
         await sb.from("groups").update({ description }).eq("id", currentGroupThread.id);
       });
 
       async function renderGroupMembersList(group) {
-        const { data: members } = await sb.from("group_members").select("user_id").eq("group_id", group.id);
-        const ids = (members || []).map((m) => m.user_id);
+        const { data: members } = await sb.from("group_members").select("user_id,role").eq("group_id", group.id);
+        const rows = members || [];
+        const ids = rows.map((m) => m.user_id);
+        const roleById = Object.fromEntries(rows.map((m) => [m.user_id, m.role]));
+        const adminCount = rows.filter((m) => m.role === "admin").length;
         const profileMap = await batchLookupProfilesById(ids);
         $("group-members-label").textContent = `Members (${ids.length})`;
 
         const list = $("group-members-list");
         list.innerHTML = "";
         const myId = currentSession.user.id;
+        const iAmAdmin = currentGroupMyRole === "admin";
         for (const id of ids) {
           const profile = profileMap[id];
           const display = (profile && (profile.username || profile.email)) || "Unknown";
+          const role = roleById[id] || "member";
+          const isLastAdmin = role === "admin" && adminCount <= 1;
           const item = document.createElement("div");
           item.className = "hub-item";
           item.innerHTML = `
             <div class="hub-item-avatar">${profile && profile.avatar_url ? `<img src="${escapeHtml(profile.avatar_url)}" alt="">` : escapeHtml(initialsFor(display))}</div>
             <div class="hub-item-body">
-              <div class="hub-item-title">${escapeHtml(display)}${id === myId ? " (you)" : ""}</div>
+              <div class="hub-item-title">${escapeHtml(display)}${id === myId ? " (you)" : ""}${role === "admin" ? ' <span class="group-admin-badge">Admin</span>' : ""}</div>
             </div>
             ${
-              id !== myId
+              iAmAdmin && id !== myId
+                ? `<button class="group-member-role-btn" title="${role === "admin" ? "Remove as admin" : "Make admin"}">${role === "admin" ? "Dismiss" : "Make admin"}</button>`
+                : ""
+            }
+            ${
+              iAmAdmin && id !== myId
                 ? `<button class="group-member-remove-btn" title="Remove from group">${ICONS.close}</button>`
                 : ""
             }
           `;
+          const roleBtn = item.querySelector(".group-member-role-btn");
+          if (roleBtn) {
+            if (isLastAdmin) {
+              roleBtn.disabled = true;
+              roleBtn.title = "A group needs at least one admin -- promote someone else first";
+            } else {
+              roleBtn.addEventListener("click", async () => {
+                const nextRole = role === "admin" ? "member" : "admin";
+                const verb = nextRole === "admin" ? "make" : "dismiss as";
+                if (!confirm(`${nextRole === "admin" ? "Make" : "Remove"} ${display} ${nextRole === "admin" ? "an admin" : "as admin"}?`)) return;
+                const { error } = await sb
+                  .from("group_members")
+                  .update({ role: nextRole })
+                  .eq("group_id", group.id)
+                  .eq("user_id", id);
+                if (error) {
+                  alert(`Could not ${verb} admin: ` + error.message);
+                  return;
+                }
+                await renderGroupMembersList(group);
+              });
+            }
+          }
           const removeBtn = item.querySelector(".group-member-remove-btn");
           if (removeBtn) {
             removeBtn.addEventListener("click", async () => {
               if (!confirm(`Remove ${display} from this group?`)) return;
-              await sb.from("group_members").delete().eq("group_id", group.id).eq("user_id", id);
+              const { error } = await sb.from("group_members").delete().eq("group_id", group.id).eq("user_id", id);
+              if (error) {
+                alert("Could not remove that member: " + error.message);
+                return;
+              }
               await renderGroupMembersList(group);
             });
           }

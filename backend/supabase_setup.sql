@@ -953,3 +953,100 @@ create table if not exists device_push_tokens (
 alter table device_push_tokens enable row level security;
 -- No policies added on purpose -- see comment above.
 
+-- ---------------------------------------------------------------------------
+-- Group admin roles. Every group member now has a role ('admin' or
+-- 'member') instead of the flat "creator vs everyone else" split used
+-- before -- the creator becomes the group's first admin, and from here on
+-- any admin (not just whoever happened to create it) can promote/demote
+-- others, remove members, edit group settings, and clear the group's
+-- history.
+-- ---------------------------------------------------------------------------
+
+alter table group_members add column if not exists role text not null default 'member';
+alter table group_members drop constraint if exists group_members_role_check;
+alter table group_members add constraint group_members_role_check check (role in ('admin', 'member'));
+
+-- Backfill: every existing group's creator becomes an admin of their own
+-- group (there was no role concept before this, so nobody was one yet).
+update group_members gm
+set role = 'admin'
+from groups g
+where g.id = gm.group_id and g.created_by = gm.user_id and gm.role <> 'admin';
+
+create or replace function public.is_group_admin(p_group_id uuid, p_user_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from group_members
+    where group_id = p_group_id and user_id = p_user_id and role = 'admin'
+  );
+$$;
+
+-- Adding members: unchanged (any existing member can still add someone
+-- new), but the row they insert can never claim role='admin' for
+-- themselves or anyone else -- the one exception is the group's own
+-- creator inserting their own row at creation time, which is how they
+-- become the first admin in the first place.
+drop policy if exists "group_members_insert" on group_members;
+create policy "group_members_insert" on group_members
+  for insert with check (
+    (
+      role = 'admin'
+      and auth.uid() = user_id
+      and exists (select 1 from groups g where g.id = group_id and g.created_by = auth.uid())
+    )
+    or (
+      role = 'member'
+      and (
+        auth.uid() = user_id
+        or exists (select 1 from groups g where g.id = group_id and g.created_by = auth.uid())
+        or public.is_group_member(group_members.group_id, auth.uid())
+      )
+    )
+  );
+
+-- Removing a member: admin-only now. Previously *any* member could remove
+-- *any* other member, which was more permissive than intended. Leaving the
+-- group yourself is unaffected either way.
+drop policy if exists "group_members_delete_self" on group_members;
+drop policy if exists "group_members_delete_by_member" on group_members;
+drop policy if exists "group_members_delete_admin_or_self" on group_members;
+create policy "group_members_delete_admin_or_self" on group_members
+  for delete using (
+    auth.uid() = user_id
+    or public.is_group_admin(group_members.group_id, auth.uid())
+  );
+
+-- Promote/demote: only an existing admin can change someone's role. (Not
+-- demoting the *last* remaining admin is enforced in the frontend as a UX
+-- guardrail, not here -- it's not a security boundary, just a "don't leave
+-- the group orphaned" nicety.)
+drop policy if exists "group_members_update_role" on group_members;
+create policy "group_members_update_role" on group_members
+  for update using (public.is_group_admin(group_members.group_id, auth.uid()))
+  with check (public.is_group_admin(group_members.group_id, auth.uid()));
+
+-- Group settings (name/description/photo): admin-only now, previously any
+-- member could change these.
+drop policy if exists "groups_update_member" on groups;
+drop policy if exists "groups_update_admin" on groups;
+create policy "groups_update_admin" on groups
+  for update using (
+    public.is_group_admin(groups.id, auth.uid())
+    -- Same reasoning as the select policy above: covers the split-second
+    -- before the creator's own group_members row (role='admin') exists.
+    or groups.created_by = auth.uid()
+  );
+
+-- Clearing a group's history: admin-only now, previously restricted to
+-- literally whoever created the group -- which excluded anyone promoted
+-- to admin afterward.
+drop policy if exists "group_messages_delete_creator" on group_messages;
+drop policy if exists "group_messages_delete_admin" on group_messages;
+create policy "group_messages_delete_admin" on group_messages
+  for delete using (public.is_group_admin(group_messages.group_id, auth.uid()));
+
